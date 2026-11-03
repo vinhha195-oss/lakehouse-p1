@@ -1,0 +1,13 @@
+.venv/
+_ext/
+work/
+staging/
+*.log
+__pycache__/
+spark-warehouse/
+metastore_db/
+results/smoke*/
+.pytest_cache/
+report/_preview/
+results/local_small/
+*.pyc
