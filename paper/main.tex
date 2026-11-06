@@ -1,6 +1,7 @@
 % IEEE conference-style paper. Compile on Overleaf (IEEEtran is built in) or with pdflatex + bibtex-free (thebibliography).
 % Every \res{...} marks a number to fill from results/report/summary.csv after the Kaggle runs.
 \documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx,booktabs,multirow,amsmath,xcolor,url,hyperref}
 \usepackage{algorithm,algpseudocode}
@@ -13,7 +14,7 @@
 \begin{document}
 \title{Update-Heavy Workloads on Small Clusters: An Experimental Comparison of Delta Lake, Apache Iceberg and Apache Hudi for IoT and Hydro-Meteorological Data}
 
-\author{\IEEEauthorblockN{Hà Văn Vinh, Đỗ Thị Lan}
+\author{\IEEEauthorblockN{H\`a V\u{a}n Vinh, \DJ{}\~{\^o} Th\d{i} Lan}
 \IEEEauthorblockA{Big Data Analytics and Management (TLU 2026), Hanoi, Vietnam}}
 
 \maketitle
@@ -32,7 +33,7 @@ ingestion, but the cost is nearly flat between $u=1\%$ and $u=20\%$ ($\le$8\% sp
 every file of the recent partitions regardless of their number. Iceberg merge-on-read is the cheapest layout for every
 $u>0$, 2.7--4.4$\times$ cheaper than Delta or Hudi without compaction, with write amplification 1.0--1.2 against
 9.4--11 for copy-on-write; compacting every 20 batches restores copy-on-write read latency for 8\,s of extra work.
-Delta's deletion vectors cut bytes written ninefold yet were slower than Delta copy-on-write in both ingest and reads
+Delta's deletion vectors cut bytes written eightfold yet were slower than Delta copy-on-write in both ingest and reads
 at this scale. Metadata grows linearly by 11--72\,KB per batch, and Hudi keeps only 23 versions reachable by time
 travel. We distil the results into a decision table for small water-monitoring deployments and release all code,
 configurations and raw measurements.
@@ -283,7 +284,7 @@ reachable by time travel. ``Versions'' below therefore means versions reachable 
 
 \begin{table}[t]
 \centering\caption{Write modes and maintenance operations per format}\label{tab:config}
-\footnotesize
+\scriptsize\setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}llll@{}}
 \toprule
  & Delta Lake 3.2.1 & Iceberg 1.6.1 & Hudi 0.15.0\\ \midrule
@@ -531,7 +532,7 @@ Iceberg CoW, but only 1.18--1.42$\times$ for the merge-on-read layouts, whose co
 not remove (reading and applying delete or log files), and 1.24$\times$ for plain Parquet, which has no table metadata
 to load. The cold-to-warm gap thus mainly reflects query planning and metadata loading.
 
-\subsection{Append-only ingestion ($u=0$)}
+\subsection{Append-only ingestion (\texorpdfstring{$u=0$}{u=0})}
 Without late data, the two modes of each format differ little, because merge-on-read only matters for the four
 deletes. Appends leave 47 files after 40 batches; compaction every 20 batches trims them to 17 at a total
 cost of 3--9\,s for Iceberg and Delta, with no measurable change in read latency at this table size. Plain Parquet is
@@ -597,7 +598,7 @@ metadata files and Hudi's metadata table more visible. Deletion vectors, which s
 off on object storage. These are hypotheses for the multi-node MinIO setup planned as future work.
 
 \subsection{Decision table}
-\begin{table}[h]\centering
+\begin{table}[ht]\centering
 \caption{Recommended configuration for a small monitoring deployment (single node, $\le$ a few GB per day)}\label{tab:decision}
 \footnotesize
 \begin{tabular}{@{}p{2.6cm}p{2.7cm}p{2.2cm}@{}}\toprule
@@ -636,7 +637,7 @@ merge-on-read was the cheapest layout for every non-zero rate, and compacting it
 copy-on-write read latency for 8--17\,s of work, while compacting every 5 batches only added cost (RQ2).
 Metadata grew linearly at 11--72\,KB per batch without affecting time-travel latency, which instead tracked the number
 of delete or log files; Hudi's default archiving limits time travel to about 23 versions (RQ3). Delta's deletion
-vectors reduced bytes written ninefold but not time, a reminder that byte-based metrics alone mislead on local disk.
+vectors reduced bytes written eightfold but not time, a reminder that byte-based metrics alone mislead on local disk.
 Future work: multi-engine reads (Trino, DuckDB over Iceberg),
 catalogs (Polaris, Unity Catalog), object storage (MinIO) on a 3--4 node cluster, and budget-aware compaction
 policies in the style of AutoComp.
