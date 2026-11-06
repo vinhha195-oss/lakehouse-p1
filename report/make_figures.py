@@ -1,4 +1,4 @@
-"""Figures used only by the Vietnamese report (report/build_report.py): the system architecture diagram."""
+"""Figure for the Vietnamese report and slides: the system architecture diagram."""
 import os
 
 import matplotlib
@@ -6,6 +6,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch  # noqa: E402
+
+plt.rcParams["font.family"] = "Times New Roman"
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "figures")
 INK, MUTED, EDGE = "#0b0b0b", "#52514e", "#8a8984"

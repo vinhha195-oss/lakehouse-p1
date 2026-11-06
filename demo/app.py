@@ -3,10 +3,13 @@
     run_demo.bat            (Windows: sets Java, then streamlit run demo/app.py)
 """
 import atexit
+import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
+import time
 
 import altair as alt
 import pandas as pd
@@ -24,17 +27,24 @@ MODE_LABEL = {"cow": "Copy-on-Write", "mor": "Merge-on-Read (Delta: deletion vec
 st.set_page_config(page_title="Lakehouse demo", layout="wide")
 
 
+@st.cache_resource
+def live_workers():
+    """Every worker of this server. A page reload starts a new session, so session_state alone would forget them."""
+    return []
+
+
 class Worker:
     """A Spark session for one format in its own process (formats need different Spark catalogs)."""
 
-    def __init__(self, fmt, mode):
+    def __init__(self, fmt, mode, run_id):
         self.fmt = fmt
-        log = open(os.path.join(ROOT, "work", f"demo_{fmt}.log"), "w")
+        log = open(os.path.join(ROOT, "work", f"demo_{fmt}.log"), "a")
         self.p = subprocess.Popen(
             [sys.executable, os.path.join(ROOT, "demo", "worker.py"), "--fmt", fmt, "--mode", mode,
-             "--workdir", os.path.join(ROOT, "work", f"demo_{fmt}"), "--staging", STAGING,
+             "--workdir", os.path.join(ROOT, "work", f"demo_{fmt}_{run_id}"), "--staging", STAGING,
              "--ivy", IVY if os.path.isdir(IVY) else ""],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True, cwd=ROOT)
+        live_workers().append(self)
         self.hello = self._read()
 
     def _read(self):
@@ -49,22 +59,35 @@ class Worker:
         return self._read()
 
     def stop(self):
+        """Wait for a clean exit: the next worker reuses this work directory."""
         try:
-            self.call(cmd="quit")
-        except Exception:
+            self.p.stdin.close()  # end of input stops the worker's Spark session
+            self.p.wait(timeout=20)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
             pass
-        self.p.kill()
+        if self.p.poll() is None:
+            # On Windows a venv python.exe is a launcher, so killing it alone would leave Python and the JVM running.
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(self.p.pid)], capture_output=True)
+            else:
+                self.p.kill()
 
 
 def stop_all():
-    for w in st.session_state.get("workers", {}).values():
+    workers = live_workers()
+    for w in workers:
         w.stop()
+    workers.clear()
     st.session_state.workers = {}
 
 
 def start(fmts, mode):
     stop_all()
     os.makedirs(os.path.join(ROOT, "work"), exist_ok=True)
+    # Each start gets its own directory, so a JVM that is slow to exit can never touch the new run's files.
+    for old in glob.glob(os.path.join(ROOT, "work", "demo_*_*")):
+        shutil.rmtree(old, ignore_errors=True)
+    run_id = int(time.time())
     if not os.path.exists(os.path.join(STAGING, "manifest.json")):
         build_plan("demo", 0.2, STAGING, seed=42)
     with open(os.path.join(STAGING, "manifest.json")) as f:
@@ -73,9 +96,9 @@ def start(fmts, mode):
     st.session_state.next_batch, st.session_state.mode = 1, mode
     for fmt in fmts:
         with st.spinner(f"Khởi động Spark cho {FORMATS[fmt]} (lần đầu khoảng 20–40 giây)..."):
-            w = Worker(fmt, mode)
+            w = Worker(fmt, mode, run_id)
             st.session_state.workers[fmt] = w
-        run_all("create", "Nạp lịch sử (bulk load)")
+    run_all("create", "Nạp lịch sử (bulk load)")
     atexit.register(stop_all)
 
 

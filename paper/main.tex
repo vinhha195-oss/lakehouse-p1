@@ -27,7 +27,7 @@ occasionally deleted. We present \sys{}, an open-source workload generator built
 dataset that replays appends, late-data upserts and station-level deletes, with a ground-truth checksum at every
 checkpoint. We evaluate the three formats in copy-on-write and merge-on-read modes (Delta: deletion vectors),
 four late-update rates $u\in\{0,1,5,20\}\%$ and three compaction cadences on a single 4-vCPU node, 228 runs in
-total, all of which match the ground truth. Any late data at all raises total cost 1.4--3.8$\times$ over append-only
+total, all of which match the ground truth. Any late data at all raises total cost 1.3--3.8$\times$ over append-only
 ingestion, but the cost is nearly flat between $u=1\%$ and $u=20\%$ ($\le$8\% spread): scattered corrections touch
 every file of the recent partitions regardless of their number. Iceberg merge-on-read is the cheapest layout for every
 $u>0$, 2.6--4.3$\times$ cheaper than any Delta or Hudi configuration, with write amplification 1.0--1.2 against
@@ -80,7 +80,7 @@ Before running the experiments we stated three hypotheses, derived from LHBench 
 deletion vectors saved bytes but not time. H3 holds in a weak form: read latency of merge-on-read tables starts to climb
 after about 20 batches, and compacting at that cadence recovers copy-on-write read speed cheaply. In addition:
 \begin{itemize}
-\item the \emph{presence} of late data, not its rate, determines cost (a 1.4--3.8$\times$ step from 0\% to 1\%, then
+\item the \emph{presence} of late data, not its rate, determines cost (a 1.3--3.8$\times$ step from 0\% to 1\%, then
 $\le$8\% change up to 20\%);
 \item Iceberg merge-on-read was the cheapest layout for every non-zero update rate;
 \item ingest latency did not grow with table size over the run, because partition pruning bounds each MERGE to the
@@ -384,9 +384,9 @@ VM) versus late-update rate. Solid: copy-on-write; dashed: merge-on-read / delet
 \label{fig:rq1}
 \end{figure}
 \textbf{The step is at $u>0$, not in $u$.} Moving from append-only ingestion to any late data multiplies total cost by
-3.3--3.8$\times$ for the copy-on-write layouts (Delta 3.4, Iceberg 3.5, Parquet 3.8), by 3.3$\times$ for Delta DV,
-2.2$\times$ for Iceberg MoR and 1.4--1.7$\times$ for Hudi (Fig.~\ref{fig:rq1}). Between $u=1\%$ and $u=20\%$ the cost
-of every layout varies by at most 8\%. With $u=1\%$ a batch already carries 216 corrections scattered over the last 72
+3.4--3.8$\times$ for the copy-on-write layouts (Delta 3.4, Iceberg 3.5, Parquet 3.8), by 3.3$\times$ for Delta DV,
+2.1$\times$ for Iceberg MoR and 1.3--1.7$\times$ for Hudi (Fig.~\ref{fig:rq1}). Between $u=1\%$ and $u=20\%$ the cost
+of every layout without compaction varies by at most 8\%. With $u=1\%$ a batch already carries 216 corrections scattered over the last 72
 hours, i.e.\ over four day partitions holding only a few files each, so practically every file of those partitions
 is touched. Copy-on-write then rewrites the same files whether 216 or 4{,}320 rows change; merge-on-read writes delete
 markers whose number, not the rewritten volume, grows with $u$.
@@ -407,7 +407,7 @@ Write amplification (Fig.~\ref{fig:wa}) makes the mechanism visible. All copy-on
 the final table size once $u>0$ (Hudi CoW 11.0), independent of $u$; Delta DV and Iceberg MoR stay at 1.03--1.16,
 growing slowly with $u$. Hudi MoR sits in between (2.3--2.5) even at $u=0$, because Hudi's small-file handling routes
 new records into existing small base files and rewrites them. Bytes are not time, however: Delta DV writes 8$\times$
-fewer bytes than Delta CoW yet ingests 9--17\% more slowly, whereas Iceberg MoR converts the same byte saving into a
+fewer bytes than Delta CoW yet ingests 9--16\% more slowly, whereas Iceberg MoR converts the same byte saving into a
 2$\times$ faster ingest than Iceberg CoW. On local disk, the per-commit work of each format's MERGE implementation
 matters more than the bytes it writes.
 
@@ -431,7 +431,7 @@ same format. Over the run (Fig.~\ref{fig:deg}) copy-on-write latency falls sligh
 the 20th and 30th batch, which is where a break point in small-file count shows up in our data (H3).
 
 \textbf{Compacting every 20 batches is enough.} It brings Iceberg MoR to 0.65\,s and Hudi MoR to 1.11\,s, i.e.\ within
-3--40\% of their copy-on-write reads, for 8\,s (Iceberg) and 17\,s (Hudi) of compaction over the run. Compacting every
+4--40\% of their copy-on-write reads, for 8\,s (Iceberg) and 17\,s (Hudi) of compaction over the run. Compacting every
 5 batches does not read faster (0.75 and 1.20\,s) but costs about twice as much (16 and 36\,s), so it is never the
 cheapest choice in our matrix. For copy-on-write layouts compaction buys nothing once $u>0$: every batch already
 rewrites the touched partitions into one file each (17 files), and Iceberg's \texttt{rewrite\_data\_files} finds no
@@ -459,7 +459,7 @@ the DV table keeps ten times more live files (167 versus 17). Hudi's metadata ke
 full, but only 23 versions remain reachable by time travel: older instants are archived even with the cleaner off.
 
 \textbf{Time-travel latency follows the delete files, not the metadata size} (Fig.~\ref{fig:rq3}, right). Reading the
-version five commits back takes 0.04--0.12\,s on Iceberg CoW and about 0.3\,s on Hudi CoW, flat over the run, and about
+version five commits back takes 0.06--0.12\,s on Iceberg CoW and about 0.3\,s on Hudi CoW, flat over the run, and about
 1.5\,s on Delta in both modes, also flat because Delta checkpoints its log every 10 commits. The two merge-on-read
 formats that accumulate delete artefacts slow down as the run proceeds: Iceberg MoR from 0.30 to 0.70\,s and Hudi MoR
 from 0.68 to 1.22\,s. Within 45 versions and 2.5\,MB, metadata size itself had no visible effect on latency.
@@ -619,14 +619,19 @@ configuration, and report CV. Normalising by one calibration factor per VM assum
 a slower VM; comparisons between layouts never rely on it, because they are made within a VM. \emph{Versions and defaults.} Results hold for the pinned versions; we changed only
 compression, cleaning and Hudi's compaction trigger, and report every setting. \emph{Data.} d1 values are
 near-uniform and compress poorly; real sensor data would shrink absolute bytes. \emph{Engine.} Spark only; other
-engines (Trino, DuckDB) may favour different formats.
+engines (Trino, DuckDB) may favour different formats. \emph{Scope against the proposal.} We repeat each configuration
+three times rather than the proposed five, so p95 values are indicative only (total cost at $u=20\%$ without compaction:
+65\,s for Iceberg MoR, 178\,s for Hudi MoR, 267\,s for Delta DV). A batch holds 6 hours of data instead of 1--5 minutes,
+so results reflect the cost per batch size, not a minutes-level write cadence. We did not vary target file size,
+partitioning by station and day, or Z-ordering, and did not run a default-configuration baseline; each day partition
+is about 13\,MB, so every file is below 128\,MB. \sys{} runs standalone and is not yet integrated into LST-Bench.
 
 %=====================================================================================================
 \section{Conclusion and Future Work}\label{sec:concl}
 For update-heavy sensor tables on a single node, the presence of late data, not its rate, sets the cost: total cost
-jumps 1.4--3.8$\times$ when corrections appear and then stays within 8\% from 1\% to 20\% late rows (RQ1). Iceberg
+jumps 1.3--3.8$\times$ when corrections appear and then stays within 8\% from 1\% to 20\% late rows (RQ1). Iceberg
 merge-on-read was the cheapest layout for every non-zero rate, and compacting it every 20 micro-batches restored
-copy-on-write read latency for a few seconds of work, while compacting every 5 batches only added cost (RQ2).
+copy-on-write read latency for 8--17\,s of work, while compacting every 5 batches only added cost (RQ2).
 Metadata grew linearly at 11--72\,KB per batch without affecting time-travel latency, which instead tracked the number
 of delete or log files; Hudi's default archiving limits time travel to about 23 versions (RQ3). Delta's deletion
 vectors reduced bytes written ninefold but not time, a reminder that byte-based metrics alone mislead on local disk.

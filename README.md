@@ -86,13 +86,15 @@ python -m sensorlst.analyze results/smoke --out results/smoke_report
 python -m sensorlst.analyze results/kaggle/u*/runs_u* --out results/report
 ```
 
-* Any late data raises total cost 1.4–3.8× over append-only; from u = 1% to 20% cost changes ≤ 8%.
+* Any late data raises total cost 1.3–3.8× over append-only; from u = 1% to 20% cost changes ≤ 8%.
 * Iceberg merge-on-read is cheapest for every u > 0 (2.6–4.3× cheaper than any Delta or Hudi configuration).
 * Compaction every 20 batches restores copy-on-write read latency for merge-on-read tables; every 5 only adds cost.
 * Delta deletion vectors write 8× fewer bytes than Delta copy-on-write but are slower in ingest and reads here.
 * Metadata grows 11–72 KB per batch; Hudi keeps ~23 versions reachable by time travel (archiving).
 * The four Kaggle VMs differed up to 1.58× in speed; durations compared across update rates are normalised by the
   calibration configuration (`results/report/machine_factor.csv`).
+
+**Scope against the proposal:** one 4-vCPU node on local disk, no TPC-DS and no MinIO; 3 repetitions instead of 5; a batch holds 6 hours of data; target file size, station partitioning and Z-order were not varied; sensor-LST is not yet integrated into LST-Bench. The report and paper state these limits.
 
 ## Live demo (localhost)
 
