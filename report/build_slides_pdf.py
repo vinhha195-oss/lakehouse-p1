@@ -19,15 +19,15 @@ OUT = os.path.join(HERE, "Slides_P1_Lakehouse.pdf")
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 RES = os.path.join(ROOT, "results", "report")
 BLOBS = {
-    "39a7cb4ad1d97efc41fe8165fd7e9952": os.path.join(HERE, "figures", "fig_architecture_vi.png"),
-    "0e281ff5497f46bf05f0a3c69b5c5804": os.path.join(RES, "fig_rq1_total_cost.png"),
-    "54b88aaba413e9f4181c9950ff99aaa3": os.path.join(RES, "fig_write_amplification.png"),
-    "adc873dedc24888f4519457ecbce258b": os.path.join(RES, "fig_rq2_compaction.png"),
-    "7680d4c1d069ab3698833f6f25326b18": os.path.join(RES, "fig_rq3_metadata.png"),
-    "8acdbe69721b46759fbd79e9daebcfdd": os.path.join(RES, "fig_ops.png"),
-    "87e74c23469a49821148cd3287c70b4c": os.path.join(RES, "fig_variability.png"),
-    "725130b2931d857376f45390ce646aaf": os.path.join(RES, "fig_ingest_trend.png"),
-    "25f40125ca49a82b4c76f691eacd473b": os.path.join(HERE, "figures", "eq_runs.png"),
+    "c95a817712eeea817ade96ce56062240": os.path.join(HERE, "figures", "fig_architecture_vi.png"),
+    "cf49683c28a57a4bd558145617b27864": os.path.join(RES, "fig_rq1_total_cost.png"),
+    "e5a0b25b62568591d9d341669cbe3271": os.path.join(RES, "fig_write_amplification.png"),
+    "2e1b52bce7045ba100d6cf724d2e3d30": os.path.join(RES, "fig_rq2_compaction.png"),
+    "fdf7f6d2fd4047eea8e78461f6c5703a": os.path.join(RES, "fig_rq3_metadata.png"),
+    "1735a784053afdb5a5c551a1c23ed5fc": os.path.join(RES, "fig_ops.png"),
+    "97740ddc1ef7348c7dcd9e561a8ab12d": os.path.join(RES, "fig_variability.png"),
+    "262cbbb85b4f316ae3803388a2a551a8": os.path.join(RES, "fig_ingest_trend.png"),
+    "78f259156a0708d12436f959fadb649c": os.path.join(HERE, "figures", "eq_runs.png"),
     "6a6481a1c8c20dc205c0ff3b0a7d5542": os.path.join(HERE, "figures", "eq_wa.png"),
     "4af89dfc920a5e2c933ea027469b329e": os.path.join(HERE, "figures", "eq_deg.png"),
 }

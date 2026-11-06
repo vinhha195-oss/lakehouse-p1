@@ -1,6 +1,6 @@
 # Hướng dẫn chạy ma trận thí nghiệm trên Kaggle
 
-Ma trận đầy đủ (228 lần chạy) được chia thành 4 notebook, mỗi notebook ứng với một mức u (tỷ lệ cập nhật trễ).
+Ma trận 3 lần lặp đầu (228 lần chạy) được chia thành 4 notebook, mỗi notebook ứng với một mức u (tỷ lệ cập nhật trễ).
 Bốn notebook chạy song song được; mỗi notebook tự dừng trước 11 giờ.
 
 | Notebook | u | Số lần chạy |
@@ -38,3 +38,22 @@ Lệnh này sinh ra `results/report/summary.csv` và các hình `fig_*.png` đ�
   vì Kaggle không giữ output giữa các phiên bản. Nên giảm `REPS` hoặc `BUDGET_HOURS` ở ô tham số đầu tiên.
 - **Lỗi `apt-get` hoặc `pip`:** kiểm tra lại Internet đã bật On chưa.
 - Có lỗi ở lần chạy nào thì chi tiết nằm trong file `results/runs_uXX/failures.jsonl`.
+
+## Chạy thêm lần 4 và 5 (đủ 5 lần cho mỗi cấu hình)
+
+Đã chạy xong ngày 06/11/2026. Ba lần đầu đã có trong `results/kaggle/`, chỉ cần chạy thêm 4 notebook sau, làm giống các bước ở trên:
+
+| Notebook | u | Số file JSON khi xong | Thời gian ước tính |
+|---|---|---|---|
+| `notebooks/sensorlst_u00b.ipynb` | 0% | 38 | khoảng 1 giờ |
+| `notebooks/sensorlst_u01b.ipynb` | 1% | 40 | khoảng 3 giờ |
+| `notebooks/sensorlst_u05b.ipynb` | 5% | 40 | khoảng 2 giờ |
+| `notebooks/sensorlst_u20b.ipynb` | 20% | 40 | khoảng 3 giờ |
+
+Thời gian có thể gấp đôi nếu gặp máy chậm. Khi xong, tải `results_u00b.zip`, `results_u01b.zip`, `results_u05b.zip`,
+`results_u20b.zip` trong tab **Output**, rồi giải nén vào `results/kaggle/u00b/`, `u01b/`, `u05b/`, `u20b/`.
+Mỗi thư mục phải có `runs_u..b`. Phân tích gộp cả 5 lần:
+
+```
+python -m sensorlst.analyze results/kaggle/u*/runs_u* --out results/report
+```

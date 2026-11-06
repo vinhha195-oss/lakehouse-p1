@@ -270,16 +270,16 @@ def fig_variability(runs, raw, out):
     axes[0].set_xticks(range(len(groups)), [label(f, m).replace(" (rewrite)", "") for f, m in groups],
                        rotation=35, ha="right")
     axes[0].set_ylabel("total cost per run (s)")
-    axes[0].set_title(f"3 repetitions, u={u * 100:g}%, no compaction")
+    axes[0].set_title(f"{int(d.groupby(['fmt', 'mode']).size().max())} repetitions, u={u * 100:g}%, no compaction")
     cal = raw[raw.calibration | ((raw.fmt == "delta") & (raw["mode"] == "cow") & (raw.u == 0) & (raw.c == 0))]
     shards = sorted(cal.shard.unique())
     for i, sh in enumerate(shards):
         v = cal[cal.shard == sh].total_s.to_numpy()
         axes[1].scatter(np.full(len(v), i) + np.linspace(-0.1, 0.1, len(v)), v, s=14, color=COLORS["delta"], zorder=3)
         axes[1].hlines(np.median(v), i - 0.25, i + 0.25, color=INK, linewidth=1)
-    axes[1].set_xticks(range(len(shards)), [s.replace("runs_", "VM ") for s in shards], rotation=35, ha="right")
+    axes[1].set_xticks(range(len(shards)), [s.replace("runs_", "") for s in shards], rotation=60, ha="right")
     axes[1].set_ylabel("Delta CoW, u=0 (s, raw)")
-    axes[1].set_title("same config, 4 VMs")
+    axes[1].set_title(f"same config, {len(shards)} VMs")
     axes[1].set_ylim(bottom=0)
     fig.tight_layout()
     fig.savefig(os.path.join(out, "fig_variability.png"), bbox_inches="tight")

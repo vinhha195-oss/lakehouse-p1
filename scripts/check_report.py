@@ -34,12 +34,12 @@ s = pd.read_csv(os.path.join(ROOT, "results", "report", "summary.csv"))
 def tot(fmt, mode, u, c=0):
     return s[(s.fmt == fmt) & (s["mode"] == mode) & (s.u == u) & (s.c == c)].total_s.iat[0]
 checks = {
-    "Iceberg MoR u20 total = 59": round(tot("iceberg", "mor", 0.2)) == 59,
-    "Delta DV u20 total = 251": round(tot("delta", "mor", 0.2)) == 251,
-    "Hudi MoR u20 total = 165": round(tot("hudi", "mor", 0.2)) == 165,
-    "Iceberg MoR c20 u20 total = 63": round(tot("iceberg", "mor", 0.2, 20)) == 63,
+    "Iceberg MoR u20 total = 63": round(tot("iceberg", "mor", 0.2)) == 63,
+    "Delta DV u20 total = 256": round(tot("delta", "mor", 0.2)) == 256,
+    "Hudi MoR u20 total = 170": round(tot("hudi", "mor", 0.2)) == 170,
+    "Iceberg MoR c20 u20 total = 64": round(tot("iceberg", "mor", 0.2, 20)) == 64,
     "Parquet u0 total = 24": round(tot("parquet", "cow", 0.0)) == 24,
-    "CV median 3.5%": round(s.total_cv.median() * 100, 1) == 3.5,
+    "CV median 3.6%": round(s.total_cv.median() * 100, 1) == 3.6,
 }
 for k, v in checks.items():
     print(("OK  " if v else "FAIL"), k)

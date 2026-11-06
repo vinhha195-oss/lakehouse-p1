@@ -6,6 +6,7 @@ The sensorlst package is embedded in one cell, so the notebook needs no GitHub a
 import glob
 import json
 import os
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 U_SHARDS = [0.0, 0.01, 0.05, 0.20]
@@ -20,13 +21,14 @@ def code(text):
             "source": text.strip("\n").splitlines(True)}
 
 
-def notebook(u: float) -> dict:
-    tag = f"u{int(round(u * 100)):02d}"
+def notebook(u: float, first_rep: int = 1, reps: int = 3, suffix: str = "") -> dict:
+    tag = f"u{int(round(u * 100)):02d}{suffix}"
+    which = f"{reps} repetitions" if first_rep == 1 else f"repetitions {first_rep} to {reps} only"
     cells = [md(f"""
 # sensor-LST benchmark — shard `{tag}` (late-update rate u = {u * 100:g}%)
 
 Delta Lake 3.2.1 vs Apache Iceberg 1.6.1 vs Apache Hudi 0.15.0 (+ plain Parquet) on Spark 3.5.3, workload built from
-TSM-Bench d1. This notebook runs every format x {{CoW, MoR}} x compaction cycle for **one** u value, 3 repetitions,
+TSM-Bench d1. This notebook runs every format x {{CoW, MoR}} x compaction cycle for **one** u value, {which},
 formats interleaved in random order inside each round, one fresh JVM per run.
 
 **Kaggle:** Settings → Internet **On**, Accelerator **None** (CPU, 4 cores / 30 GB). Then *Save Version → Save & Run All
@@ -36,7 +38,9 @@ run, so if the session disconnects just Run all again: finished runs are skipped
 """),
         code(f"""
 U = {u}            # this shard
-REPS = 3
+REPS = {reps}
+FIRST_REP = {first_rep}
+SUFFIX = "{suffix}"
 BUDGET_HOURS = 10.5  # stop starting new runs after this; finished runs are kept
 SCALE = "small"
 USE_DRIVE = True   # Colab only: write results to MyDrive/sensorlst as they finish (survives disconnects)
@@ -132,9 +136,9 @@ for fmt in ["delta", "iceberg", "hudi"]:
 """),
         md("## Run the shard (resumable, prints one line per run)"),
         code("""
-TAG = f"u{int(round(U * 100)):02d}"
+TAG = f"u{int(round(U * 100)):02d}{SUFFIX}"
 OUT = f"{RESULTS}/runs_{TAG}"
-cmd = [PY, "-m", "sensorlst.matrix", "--scale", SCALE, "--u", str(U), "--reps", str(REPS),
+cmd = [PY, "-m", "sensorlst.matrix", "--scale", SCALE, "--u", str(U), "--reps", str(REPS), "--first-rep", str(FIRST_REP),
        "--source", SRC, "--out", OUT, "--staging", f"{SCRATCH}/staging", "--workdir", f"{SCRATCH}/work",
        "--cores", str(CORES), "--driver-mem", DRIVER_MEM, "--ivy", f"{SCRATCH}/ivy",
        "--budget-hours", str(BUDGET_HOURS), "--calibration"]
@@ -173,12 +177,16 @@ if not runs:
 
 
 def main():
+    """--extra writes the notebooks that add repetitions 4 and 5; the first three repetitions are already done."""
+    extra = "--extra" in sys.argv
     out = os.path.join(ROOT, "notebooks")
     os.makedirs(out, exist_ok=True)
     for u in U_SHARDS:
-        p = os.path.join(out, f"sensorlst_u{int(round(u * 100)):02d}.ipynb")
+        suffix = "b" if extra else ""
+        p = os.path.join(out, f"sensorlst_u{int(round(u * 100)):02d}{suffix}.ipynb")
+        nb = notebook(u, 4, 5, suffix) if extra else notebook(u)
         with open(p, "w", encoding="utf-8") as f:
-            json.dump(notebook(u), f, indent=1, ensure_ascii=False)
+            json.dump(nb, f, indent=1, ensure_ascii=False)
         print(p)
 
 

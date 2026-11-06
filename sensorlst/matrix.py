@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--u", type=float, nargs="+", required=True)
     ap.add_argument("--formats", default=",".join(FORMATS))
     ap.add_argument("--reps", type=int, default=3)
+    ap.add_argument("--first-rep", type=int, default=1, help="skip earlier rounds, to add repetitions to a finished run")
     ap.add_argument("--source", default=None, help="Parquet from prepare_d1; omit for synthetic data")
     ap.add_argument("--out", default="results/runs")
     ap.add_argument("--staging", default="staging")
@@ -62,7 +63,7 @@ def main():
     stagings = {u: stage(args.scale, u, args.source, args.staging, args.seed) for u in {c.u for c in cfgs}}
 
     durations = []
-    for rep in range(1, args.reps + 1):
+    for rep in range(args.first_rep, args.reps + 1):
         rnd = [c for c in cfgs if c.rep == rep]
         random.Random(args.seed * 1000 + rep).shuffle(rnd)
         for c in rnd:

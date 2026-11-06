@@ -137,7 +137,7 @@ step("Bước 4 – Xóa một trạm và kiểm tra đúng đắn (60 giây)",
      "kéo lên, bấm **Xóa trạm st0 ngày 2019-03-01**. Khi thấy dòng xanh, kéo xuống đổi Trạm thành **st0**, "
      "để nguyên phiên bản v4.",
      "Giả sử trạm st0 hỏng, ta xóa dữ liệu của trạm trong ngày. Dòng xanh là kiểm tra tự động: số dòng của cả ba format "
-     "đều khớp đáp án 8.640. Trong thí nghiệm chính, cả 237 lần chạy đều qua bước kiểm tra này. Trạm st0 đã mất khỏi bảng "
+     "đều khớp đáp án 8.640. Trong thí nghiệm chính, cả 395 lần chạy đều qua bước kiểm tra này. Trạm st0 đã mất khỏi bảng "
      "hiện tại, nhưng time travel về phiên bản trước vẫn đọc được 2.880 dòng.",
      "bảng còn **8.640 dòng**, dòng xanh “tất cả format khớp”, sau đó là cảnh báo vàng “Trạm st0 đã bị xóa… "
      "phiên bản v4 vẫn còn 2,880 dòng”.")
@@ -150,7 +150,7 @@ step("Bước 5 – Compaction (45 giây)",
      "vẫn 8.640 dòng. Delta 1 file dữ liệu, 0 file xóa. Iceberg 1 file dữ liệu, 1 file xóa. Hudi 1 file dữ liệu, 0 file log.")
 step("Bước 6 – Kết (15 giây)",
      "dừng tay, quay lại nhìn người nghe.",
-     "Số trong demo chỉ để minh họa cơ chế. Kết luận của đề tài dựa trên 228 lần chạy: khi có dữ liệu trễ, nên chọn "
+     "Số trong demo chỉ để minh họa cơ chế. Kết luận của đề tài dựa trên 380 lần chạy: khi có dữ liệu trễ, nên chọn "
      "Iceberg Merge-on-Read, compaction mỗi 20 batch. Em xin hết phần demo, mời thầy và các bạn đặt câu hỏi.",
      "giữ nguyên.")
 
@@ -178,7 +178,7 @@ table(["Câu hỏi", "Gợi ý trả lời"],
         "file log. Ở thí nghiệm chính, Hudi MoR có 124 file log sau 40 batch"],
        ["Demo nhỏ có đại diện cho kết quả không?",
         "Không dùng để so sánh hiệu năng. Demo chỉ minh họa cơ chế; số liệu kết luận lấy từ thí nghiệm 1,43 triệu dòng, "
-        "lặp 3 lần mỗi cấu hình"],
+        "lặp 5 lần mỗi cấu hình"],
        ["Sau compaction còn time travel được không?",
         "Được, vì đề tài không dọn file cũ. Hệ thống thật phải chọn thời gian giữ lịch sử, dọn rồi thì mất phiên bản cũ"],
        ["Copy-on-Write khác gì?",
@@ -191,7 +191,7 @@ table(["Câu hỏi", "Gợi ý trả lời"],
 
 doc.add_paragraph("6. Giải thích bằng ví dụ ba chiếc xe tải", style="Heading 1")
 p("Coi Delta, Iceberg và Hudi là ba xe tải chở cùng một lô hàng; mỗi dòng dữ liệu là một kiện hàng. "
-  "Demo là lái thử vài vòng, còn 228 lần chạy thí nghiệm là chặng đường dài để kết luận.")
+  "Demo là lái thử vài vòng, còn 380 lần chạy thí nghiệm là chặng đường dài để kết luận.")
 table(["Trong demo", "Trên chiếc xe"],
       [["Số dòng", "Số kiện hàng trên xe"],
        ["Batch (720 mới + 144 trễ)", "Một chuyến giao 720 kiện mới và đổi 144 kiện"],
@@ -204,7 +204,7 @@ table(["Trong demo", "Trên chiếc xe"],
        ["Compaction", "Dừng xe, dồn hàng cho gọn; số kiện không đổi"]],
       [6.5, 10.5])
 p("**Câu chốt:** chở hàng hay phải đổi hàng thì chọn xe Iceberg, cứ 20 chuyến dồn hàng một lần: "
-  "ở thí nghiệm chính, *u* = 20%, Iceberg MoR hết 59 giây, Hudi MoR 165 giây, Delta DV 251 giây.")
+  "ở thí nghiệm chính, *u* = 20%, Iceberg MoR hết 63 giây, Hudi MoR 170 giây, Delta DV 256 giây.")
 
 doc.save(OUT)
 print("saved", OUT)

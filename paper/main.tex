@@ -26,11 +26,11 @@ arrive continuously in micro-batches, late readings must be corrected retroactiv
 occasionally deleted. We present \sys{}, an open-source workload generator built on the TSM-Bench d1 hydrological
 dataset that replays appends, late-data upserts and station-level deletes, with a ground-truth checksum at every
 checkpoint. We evaluate the three formats in copy-on-write and merge-on-read modes (Delta: deletion vectors),
-four late-update rates $u\in\{0,1,5,20\}\%$ and three compaction cadences on a single 4-vCPU node, 228 runs in
+four late-update rates $u\in\{0,1,5,20\}\%$ and three compaction cadences on a single 4-vCPU node, 380 runs in
 total, all of which match the ground truth. Any late data at all raises total cost 1.3--3.8$\times$ over append-only
 ingestion, but the cost is nearly flat between $u=1\%$ and $u=20\%$ ($\le$8\% spread): scattered corrections touch
 every file of the recent partitions regardless of their number. Iceberg merge-on-read is the cheapest layout for every
-$u>0$, 2.6--4.3$\times$ cheaper than any Delta or Hudi configuration, with write amplification 1.0--1.2 against
+$u>0$, 2.7--4.4$\times$ cheaper than Delta or Hudi without compaction, with write amplification 1.0--1.2 against
 9.4--11 for copy-on-write; compacting every 20 batches restores copy-on-write read latency for 8\,s of extra work.
 Delta's deletion vectors cut bytes written ninefold yet were slower than Delta copy-on-write in both ingest and reads
 at this scale. Metadata grows linearly by 11--72\,KB per batch, and Hudi keeps only 23 versions reachable by time
@@ -99,7 +99,7 @@ Section~\ref{sec:concl} concludes.
 \textbf{Contributions.} (1)~\sys{}, an open workload generator that turns TSM-Bench~\cite{khelifati2023tsmbench}
 data into a deterministic stream of appends, late upserts and deletes, with ground truth for correctness checking;
 (2)~a controlled, reproducible comparison of Delta Lake, Iceberg and Hudi (plus a plain-Parquet baseline) in both
-write modes and three compaction cadences on a single node, 228 runs with repetitions and randomised
+write modes and three compaction cadences on a single node, 380 runs with repetitions and randomised
 interleaving; (3)~an explanation of the observed differences in terms of each format's write path, and a decision
 table for practitioners.
 
@@ -258,10 +258,11 @@ station; Q5 a full scan (\texttt{count}, $\sum s_0$) that doubles as the checksu
 %=====================================================================================================
 \section{Experimental Setup}\label{sec:setup}
 \textbf{Platform.} Kaggle CPU notebooks (4 vCPU, 31.3\,GB RAM, Linux 6.18, local disk), run as headless batch
-jobs. Each update rate ran on its own VM. The calibration configuration (Delta CoW, $u=0$; 3 repetitions per VM)
-took 65, 103, 70 and 98\,s on the VMs of the $u=0,1,5,20\%$ shards, i.e.\ two VMs were about 1.5$\times$ slower.
+jobs. Each update rate ran in two batches, repetitions 1--3 and repetitions 4--5, each on its own VM (eight VMs in total). The calibration
+configuration (Delta CoW, $u=0$) took 65, 103, 70 and 98\,s on the first-batch VMs of the $u=0,1,5,20\%$ shards and 98, 86, 100 and
+99\,s on the second-batch VMs, i.e.\ six of the eight VMs were 1.3--1.6$\times$ slower than the reference.
 Comparisons between formats are always made within one VM; for comparisons across update rates we divide every
-duration by its VM's calibration factor (1.00, 1.58, 1.07, 1.50), expressing all times in seconds of the
+duration by its VM's calibration factor (first batch 1.00, 1.58, 1.07, 1.50; second batch 1.51, 1.32, 1.54, 1.51), expressing all times in seconds of the
 $u=0$ VM. Apache Spark~\cite{zaharia2012rdd,armbrust2015sparksql}
 3.5.3 runs in local mode with all cores, driver memory 60\% of RAM, Java 21 and Python 3.13 (the platform defaults; all four layouts were verified to give
 identical results on Java 11/21 and Python 3.12/3.13), one fresh JVM per run.
@@ -294,7 +295,7 @@ Compact & \texttt{REORG}+\texttt{OPTIMIZE} & \texttt{rewrite\_data\_files} & com
 \end{table}
 
 \textbf{Experiment matrix.} 3 formats $\times$ 2 modes $\times$ 4 update rates $\times$ 3 compaction cadences = 72
-configurations, plus 4 Parquet baselines, each repeated 3 times: 228 runs. Runs are executed in rounds (one
+configurations, plus 4 Parquet baselines, each repeated 5 times: 380 runs. Runs are executed in rounds (one
 repetition of every configuration per round) in a seeded random order, so that formats are interleaved on the same
 machine. Each update rate runs as a separate shard on its own VM; every shard also repeats a calibration
 configuration (Delta CoW, $u=0$) to quantify VM-to-VM variation.
@@ -338,9 +339,9 @@ layout in a fresh JVM and is checked against the ground truth at each checkpoint
 
 %=====================================================================================================
 \section{Results}\label{sec:results}
-\textbf{Correctness and stability.} All 237 runs (228 plus 9 calibration repeats) returned the expected row count and
+\textbf{Correctness and stability.} All 395 runs (380 plus 15 calibration repeats) returned the expected row count and
 checksum at all four checkpoints. The median coefficient of variation of total cost across the three repetitions is
-3.5\% (maximum 12.7\%, Iceberg CoW at $u=20\%$), so differences above about 15\% are well outside run-to-run noise.
+3.6\% (maximum 10.9\%, Iceberg CoW at $u=20\%$), so differences above about 15\% are well outside run-to-run noise.
 Fig.~\ref{fig:var} shows both sources of variation: repetitions on the same VM lie close together, whereas the same
 calibration configuration took 65 to 103\,s on different VMs of the same advertised type---a 1.6$\times$ spread that
 would have distorted every comparison across update rates without normalisation.
@@ -354,47 +355,47 @@ calibration configuration on the four VMs, in raw seconds.}
 Table~\ref{tab:u20} summarises the $u=20\%$ shard.
 
 \begin{table*}[t]\centering
-\caption{Results at $u=20\%$ (median of 3 runs, seconds on the reference VM). Total = ingest + compaction + all
+\caption{Results at $u=20\%$ (median of 5 runs, seconds on the reference VM). Total = ingest + compaction + all
 checkpoint queries. WA = write amplification. Read = warm Q1--Q5 at the last checkpoint. Files = live data + live
 delete/log files at the end.}\label{tab:u20}
 \footnotesize
 \begin{tabular}{@{}lrrrrrrrr@{}}\toprule
 Layout & Compact every & Ingest & Compaction & Queries & Total & WA & Read & Files\\\midrule
-Iceberg MoR & -- & 51 & 0 & 8 & \textbf{59} & 1.16 & 2.24 & 167+154\\
-Parquet (rewrite) & -- & 84 & 0 & 3 & 87 & 9.53 & 0.70 & 84+0\\
-Iceberg CoW & -- & 105 & 0 & 3 & 108 & 9.37 & 0.63 & 17+0\\
-Hudi MoR & -- & 154 & 0 & 11 & 165 & 2.51 & 2.87 & 5+124\\
-Delta CoW & -- & 200 & 0 & 7 & 207 & 9.37 & 1.64 & 17+0\\
-Hudi CoW & -- & 204 & 0 & 3 & 207 & 11.00 & 0.80 & 11+0\\
-Delta DV & -- & 233 & 0 & 19 & 251 & 1.16 & 4.52 & 167+154\\\midrule
-Iceberg MoR & 20 & 51 & 8 & 4 & \textbf{63} & 2.34 & 0.65 & 17+10\\
+Iceberg MoR & -- & 55 & 0 & 8 & \textbf{63} & 1.16 & 2.27 & 167+154\\
+Parquet (rewrite) & -- & 89 & 0 & 3 & 92 & 9.53 & 0.70 & 84+0\\
+Iceberg CoW & -- & 97 & 0 & 3 & 100 & 9.37 & 0.63 & 17+0\\
+Hudi MoR & -- & 159 & 0 & 11 & 170 & 2.51 & 2.86 & 5+124\\
+Hudi CoW & -- & 204 & 0 & 3 & 208 & 11.00 & 0.80 & 11+0\\
+Delta CoW & -- & 215 & 0 & 7 & 223 & 9.37 & 1.64 & 17+0\\
+Delta DV & -- & 236 & 0 & 19 & 256 & 1.16 & 4.76 & 167+154\\\midrule
+Iceberg MoR & 20 & 52 & 8 & 4 & \textbf{64} & 2.34 & 0.67 & 17+10\\
 Iceberg CoW & 20 & 96 & 0 & 3 & 99 & 9.37 & 0.71 & 17+0\\
-Hudi MoR & 20 & 151 & 17 & 6 & 175 & 3.46 & 1.11 & 17+0\\
-Delta CoW & 20 & 196 & 3 & 7 & 205 & 9.37 & 1.52 & 17+0\\
-Hudi CoW & 20 & 197 & 18 & 3 & 218 & 12.53 & 0.79 & 17+0\\
-Delta DV & 20 & 237 & 20 & 16 & 277 & 3.27 & 2.86 & 17+0\\\bottomrule
+Hudi MoR & 20 & 162 & 17 & 7 & 186 & 3.46 & 1.19 & 17+0\\
+Delta CoW & 20 & 200 & 3 & 7 & 210 & 9.37 & 1.58 & 17+0\\
+Delta DV & 20 & 237 & 20 & 15 & 273 & 3.27 & 2.86 & 17+0\\
+Hudi CoW & 20 & 212 & 18 & 3 & 233 & 12.53 & 0.79 & 17+0\\\bottomrule
 \end{tabular}
 \end{table*}
 
 \subsection{RQ1: total cost versus update rate}
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{fig_rq1_total_cost.png}
-\caption{Total cost (ingest + compaction + all checkpoint queries; median of 3 runs, normalised to the reference
+\caption{Total cost (ingest + compaction + all checkpoint queries; median of 5 runs, normalised to the reference
 VM) versus late-update rate. Solid: copy-on-write; dashed: merge-on-read / deletion vectors.}
 \label{fig:rq1}
 \end{figure}
 \textbf{The step is at $u>0$, not in $u$.} Moving from append-only ingestion to any late data multiplies total cost by
-3.4--3.8$\times$ for the copy-on-write layouts (Delta 3.4, Iceberg 3.5, Parquet 3.8), by 3.3$\times$ for Delta DV,
-2.1$\times$ for Iceberg MoR and 1.3--1.7$\times$ for Hudi (Fig.~\ref{fig:rq1}). Between $u=1\%$ and $u=20\%$ the cost
+3.3--3.8$\times$ for the copy-on-write layouts (Delta 3.3, Iceberg 3.6, Parquet 3.8), by 3.3$\times$ for Delta DV,
+2.2$\times$ for Iceberg MoR and 1.3--1.7$\times$ for Hudi (Fig.~\ref{fig:rq1}). Between $u=1\%$ and $u=20\%$ the cost
 of every layout without compaction varies by at most 8\%. With $u=1\%$ a batch already carries 216 corrections scattered over the last 72
 hours, i.e.\ over four day partitions holding only a few files each, so practically every file of those partitions
 is touched. Copy-on-write then rewrites the same files whether 216 or 4{,}320 rows change; merge-on-read writes delete
 markers whose number, not the rewritten volume, grows with $u$.
 
-\textbf{Iceberg MoR is cheapest whenever $u>0$}: 58--63\,s, against 1.4--1.6$\times$ for plain Parquet,
-1.6--1.8$\times$ for Iceberg CoW, 2.6--2.8$\times$ for Hudi MoR and 3.3--4.3$\times$ for the Delta and Hudi CoW
+\textbf{Iceberg MoR is cheapest whenever $u>0$}: 59--63\,s, against 1.5$\times$ for plain Parquet,
+1.6--1.8$\times$ for Iceberg CoW, 2.7--2.8$\times$ for Hudi MoR and 3.3--4.4$\times$ for the Delta and Hudi CoW
 configurations. At $u=0$ the plain-Parquet baseline is fastest (24\,s), followed by both Iceberg modes (27--28\,s);
-Hudi is slowest (120--122\,s) because its insert path merges new records into existing small files.
+Hudi is slowest (122--123\,s) because its insert path merges new records into existing small files.
 Ingest dominates total cost in our workload (40 batches against four checkpoints), so a layout's write path largely
 decides RQ1; Section~\ref{sec:disc} discusses the break-even when queries are more frequent.
 
@@ -407,8 +408,8 @@ Write amplification (Fig.~\ref{fig:wa}) makes the mechanism visible. All copy-on
 the final table size once $u>0$ (Hudi CoW 11.0), independent of $u$; Delta DV and Iceberg MoR stay at 1.03--1.16,
 growing slowly with $u$. Hudi MoR sits in between (2.3--2.5) even at $u=0$, because Hudi's small-file handling routes
 new records into existing small base files and rewrites them. Bytes are not time, however: Delta DV writes 8$\times$
-fewer bytes than Delta CoW yet ingests 9--16\% more slowly, whereas Iceberg MoR converts the same byte saving into a
-2$\times$ faster ingest than Iceberg CoW. On local disk, the per-commit work of each format's MERGE implementation
+fewer bytes than Delta CoW yet ingests 10--13\% more slowly, whereas Iceberg MoR converts the same byte saving into a
+nearly 2$\times$ faster ingest than Iceberg CoW. On local disk, the per-commit work of each format's MERGE implementation
 matters more than the bytes it writes.
 
 \subsection{RQ2: compaction cadence}
@@ -424,16 +425,16 @@ matters more than the bytes it writes.
 \end{figure}
 \textbf{Without compaction, merge-on-read pays at read time.} After 40 batches at $u=20\%$, Delta DV and Iceberg MoR
 hold 167 data files plus 154 deletion vectors or delete files, and Hudi MoR 5 base files plus 124 log files, against
-11--17 files for copy-on-write (Fig.~\ref{fig:rq2}, right). Warm Q1--Q5 latency is correspondingly 2.24\,s for Iceberg
-MoR, 2.87\,s for Hudi MoR and 4.52\,s for Delta DV, versus 0.63, 0.80 and 1.64\,s for the copy-on-write mode of the
+11--17 files for copy-on-write (Fig.~\ref{fig:rq2}, right). Warm Q1--Q5 latency is correspondingly 2.27\,s for Iceberg
+MoR, 2.86\,s for Hudi MoR and 4.76\,s for Delta DV, versus 0.63, 0.80 and 1.64\,s for the copy-on-write mode of the
 same format. Over the run (Fig.~\ref{fig:deg}) copy-on-write latency falls slightly as the JVM warms up
-(degradation rate $-9$\% to $-26$\%), whereas Iceberg MoR rises by 24\% and Hudi MoR by 15\%; Hudi MoR jumps between
+(degradation rate $-9$\% to $-26$\%), whereas Iceberg MoR rises by 28\% and Hudi MoR by 15\%; Hudi MoR jumps between
 the 20th and 30th batch, which is where a break point in small-file count shows up in our data (H3).
 
-\textbf{Compacting every 20 batches is enough.} It brings Iceberg MoR to 0.65\,s and Hudi MoR to 1.11\,s, i.e.\ within
-4--40\% of their copy-on-write reads, for 8\,s (Iceberg) and 17\,s (Hudi) of compaction over the run. Compacting every
-5 batches does not read faster (0.75 and 1.20\,s) but costs about twice as much (16 and 36\,s), so it is never the
-cheapest choice in our matrix. For copy-on-write layouts compaction buys nothing once $u>0$: every batch already
+\textbf{Compacting every 20 batches is enough.} It brings Iceberg MoR to 0.67\,s and Hudi MoR to 1.19\,s, i.e.\ 6\% and
+49\% above their copy-on-write reads, for 8\,s (Iceberg) and 17\,s (Hudi) of compaction over the run. Compacting every
+5 batches does not read faster (0.75 and 1.20\,s) but costs about twice as much (15 and 37\,s), so it is never the
+cheapest choice for a merge-on-read table in our matrix. For copy-on-write layouts compaction buys nothing once $u>0$: every batch already
 rewrites the touched partitions into one file each (17 files), and Iceberg's \texttt{rewrite\_data\_files} finds no
 work. At $u=0$, by contrast, appends leave 47 files without compaction and compaction trims them to 17, with no
 measurable change in read latency at this table size.
@@ -442,7 +443,7 @@ Two maintenance details matter in practice. First, Iceberg 1.6's \texttt{rewrite
 delete files that no longer apply: 23 (every 5 batches) and 10 (every 20 batches) remained live at the end, whereas Delta's
 \texttt{REORG}+\texttt{OPTIMIZE} left none at either cadence; Hudi left none when compacting every 20 batches but 25
 log files when compacting every 5. Second, enabling deletion vectors slows every Delta query by roughly 0.2--0.3\,s even
-after all vectors have been purged (Q1--Q5: 2.86\,s versus 1.52\,s with the same 17 files), so a Delta table that is mostly read is better served by copy-on-write.
+after all vectors have been purged (Q1--Q5: 2.86\,s versus 1.58\,s with the same 17 files), so a Delta table that is mostly read is better served by copy-on-write.
 
 \subsection{RQ3: metadata and time travel}
 \begin{figure}[t]\centering
@@ -459,10 +460,10 @@ the DV table keeps ten times more live files (167 versus 17). Hudi's metadata ke
 full, but only 23 versions remain reachable by time travel: older instants are archived even with the cleaner off.
 
 \textbf{Time-travel latency follows the delete files, not the metadata size} (Fig.~\ref{fig:rq3}, right). Reading the
-version five commits back takes 0.06--0.12\,s on Iceberg CoW and about 0.3\,s on Hudi CoW, flat over the run, and about
-1.5\,s on Delta in both modes, also flat because Delta checkpoints its log every 10 commits. The two merge-on-read
-formats that accumulate delete artefacts slow down as the run proceeds: Iceberg MoR from 0.30 to 0.70\,s and Hudi MoR
-from 0.68 to 1.22\,s. Within 45 versions and 2.5\,MB, metadata size itself had no visible effect on latency.
+version five commits back takes 0.06--0.13\,s on Iceberg CoW and about 0.3\,s on Hudi CoW, flat over the run, and about
+1.6\,s on Delta in both modes, also flat because Delta checkpoints its log every 10 commits. The two merge-on-read
+formats that accumulate delete artefacts slow down as the run proceeds: Iceberg MoR from 0.33 to 0.71\,s and Hudi MoR
+from 0.68 to 1.13\,s. Within 45 versions and 2.5\,MB, metadata size itself had no visible effect on latency.
 
 \subsection{Cost of individual operations}
 \begin{figure}[t]\centering
@@ -472,69 +473,69 @@ one compaction (both cadences).}
 \label{fig:ops}
 \end{figure}
 Fig.~\ref{fig:ops} breaks total cost down to single operations. A micro-batch MERGE with 4{,}320 corrections takes
-1.06\,s on Iceberg MoR, 2.04\,s on Iceberg CoW, 1.88\,s on plain Parquet, 3.3--4.1\,s on Hudi and 4.0--5.1\,s on Delta.
+1.05\,s on Iceberg MoR, 2.00\,s on Iceberg CoW, 1.89\,s on plain Parquet, 3.3--4.2\,s on Hudi and 4.5--5.0\,s on Delta.
 Deleting one station-day is cheapest on Iceberg MoR (0.19\,s, a single position-delete file) and costs 2.2--2.9\,s on
 Delta and Hudi in either mode: on Delta, the deletion vector saves the file rewrite but not the commit overhead, and on
-Hudi the delete is itself an upsert of tombstones that must first be read from the table. One compaction costs 1.9\,s
-on Iceberg MoR, 4.8\,s on Hudi MoR and about 8\,s on Delta DV (\texttt{REORG} plus \texttt{OPTIMIZE}) and Hudi CoW
+Hudi the delete is itself an upsert of tombstones that must first be read from the table. One compaction costs 1.8\,s
+on Iceberg MoR, 4.9\,s on Hudi MoR and about 8\,s on Delta DV (\texttt{REORG} plus \texttt{OPTIMIZE}) and Hudi CoW
 (clustering); Iceberg CoW's compaction finds nothing to rewrite (0.03\,s). The initial bulk load of 604{,}800 rows takes
-5.6--6.3\,s for Parquet and Iceberg, 10.5\,s for Delta and 12.9--13.2\,s for Hudi, consistent with LHBench's observation
+5.5--6.3\,s for Parquet and Iceberg, 10.3--10.4\,s for Delta and 12.9--13.0\,s for Hudi, consistent with LHBench's observation
 that Hudi loads more slowly~\cite{jain2023lhbench}. JVM and session start-up, excluded from all totals, takes
 2.7--3.8\,s per run.
 
 \subsection{Ingest over time}
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{fig_ingest_trend.png}
-\caption{Per-batch ingest latency over the run without compaction (median of 3 runs, 5-batch moving mean).}
+\caption{Per-batch ingest latency over the run without compaction (median of 5 runs, 5-batch moving mean).}
 \label{fig:trend}
 \end{figure}
 Ingest latency does not grow as the table grows from 0.6 to 1.43\,M rows (Fig.~\ref{fig:trend}). The first batches are
-slow while the JVM warms up; afterwards upsert latency is flat or slightly falling, e.g.\ Iceberg MoR 1.93\,s in
-batches 1--5 and 0.88\,s in batches 36--40, Delta CoW 6.65 and 4.03\,s. The explicit \texttt{day IN (\dots)}
+slow while the JVM warms up; afterwards upsert latency is flat or slightly falling, e.g.\ Iceberg MoR 1.97\,s in
+batches 1--5 and 0.90\,s in batches 36--40, Delta CoW 6.53 and 4.49\,s. The explicit \texttt{day IN (\dots)}
 predicate confines every MERGE to the four newest day partitions, so its cost depends on the size of those partitions,
 not of the table. Two patterns stand out. Delta's append latency jumps every tenth commit (5.1\,s at commit 10 and
-2.7\,s at commit 20, versus 0.6\,s otherwise): the commit that writes the Parquet log checkpoint pays for it
+2.7\,s at commit 20, versus 0.5\,s otherwise): the commit that writes the Parquet log checkpoint pays for it
 synchronously. Hudi's append latency stays at 2.2--2.4\,s throughout, 7$\times$ Iceberg's, because small-file
 handling merges each batch into existing base files.
 
 \subsection{Which queries pay the merge-on-read penalty}
 \begin{table}[t]\centering
-\caption{Warm latency per query at the end of the run, $u=20\%$ (seconds, median of 3)}\label{tab:perquery}
+\caption{Warm latency per query at the end of the run, $u=20\%$ (seconds, median of 5)}\label{tab:perquery}
 \footnotesize
 \begin{tabular}{@{}lrrrrr@{}}\toprule
 Layout (compaction) & Q1 & Q2 & Q3 & Q4 & Q5\\\midrule
-Iceberg CoW (never) & 0.09 & 0.10 & 0.28 & 0.05 & 0.10\\
-Iceberg MoR (never) & 0.14 & 0.22 & 1.07 & 0.07 & 0.75\\
-Iceberg MoR (every 20) & 0.12 & 0.11 & 0.26 & 0.06 & 0.08\\
-Hudi CoW (never) & 0.15 & 0.12 & 0.37 & 0.06 & 0.10\\
-Hudi MoR (never) & 0.15 & 0.28 & 1.28 & 0.16 & 0.95\\
-Hudi MoR (every 20) & 0.14 & 0.20 & 0.47 & 0.08 & 0.22\\
+Iceberg CoW (never) & 0.10 & 0.11 & 0.28 & 0.05 & 0.10\\
+Iceberg MoR (never) & 0.14 & 0.24 & 1.15 & 0.08 & 0.74\\
+Iceberg MoR (every 20) & 0.12 & 0.11 & 0.27 & 0.07 & 0.09\\
+Hudi CoW (never) & 0.15 & 0.12 & 0.33 & 0.06 & 0.10\\
+Hudi MoR (never) & 0.14 & 0.28 & 1.28 & 0.16 & 0.95\\
+Hudi MoR (every 20) & 0.14 & 0.19 & 0.50 & 0.08 & 0.22\\
 Delta CoW (never) & 0.28 & 0.29 & 0.54 & 0.25 & 0.33\\
-Delta DV (never) & 0.87 & 0.84 & 1.46 & 0.66 & 0.82\\
-Delta DV (every 20) & 0.54 & 0.46 & 0.85 & 0.46 & 0.51\\
-Parquet (rewrite) & 0.12 & 0.13 & 0.27 & 0.06 & 0.10\\\bottomrule
+Delta DV (never) & 0.84 & 0.81 & 1.46 & 0.68 & 0.85\\
+Delta DV (every 20) & 0.54 & 0.46 & 0.81 & 0.53 & 0.49\\
+Parquet (rewrite) & 0.12 & 0.12 & 0.28 & 0.06 & 0.10\\\bottomrule
 \end{tabular}
 \end{table}
 Table~\ref{tab:perquery} shows where merge-on-read reads lose time. For Iceberg and Hudi the penalty is concentrated in
-the queries that scan the whole history: Q3 (join over all days) is 3.5--3.9$\times$ slower than with copy-on-write and
-Q5 (full scan) 7.8--9.7$\times$, because they open every data file together with its delete or log files. The
+the queries that scan the whole history: Q3 (join over all days) is 3.9--4.1$\times$ slower than with copy-on-write and
+Q5 (full scan) 7.7--9.5$\times$, because they open every data file together with its delete or log files. The
 dashboard-style queries over recent data (Q1, Q4) are almost unaffected, since partition pruning limits them to one or
-two days. Delta DV is different: all five queries are 2.5--3.1$\times$ slower than Delta CoW, which points to a per-query
+two days. Delta DV is different: all five queries are 2.6--3.0$\times$ slower than Delta CoW, which points to a per-query
 cost of the deletion-vector read path rather than to the volume of deleted rows. Compaction every 20 batches removes
 the Iceberg penalty completely and most of the Hudi penalty.
 
 \subsection{Cold and warm queries}
 Each query ran twice per checkpoint. At the end of the run, the first (cold) execution of Q1--Q5 took
-1.2--2.1$\times$ as long as the second: 2.08$\times$ for Delta CoW, 1.87$\times$ for Iceberg CoW, 1.73$\times$ for
-Hudi CoW, but only 1.20--1.44$\times$ for the merge-on-read layouts, whose cost is dominated by work that caching does
+1.2--2.1$\times$ as long as the second: 2.09$\times$ for Delta CoW, 1.69$\times$ for Hudi CoW, 1.49$\times$ for
+Iceberg CoW, but only 1.18--1.42$\times$ for the merge-on-read layouts, whose cost is dominated by work that caching does
 not remove (reading and applying delete or log files), and 1.24$\times$ for plain Parquet, which has no table metadata
 to load. The cold-to-warm gap thus mainly reflects query planning and metadata loading.
 
 \subsection{Append-only ingestion ($u=0$)}
 Without late data, the two modes of each format differ little, because merge-on-read only matters for the four
 deletes. Appends leave 47 files after 40 batches; compaction every 20 batches trims them to 17 at a total
-cost of 3--8\,s for Iceberg and Delta, with no measurable change in read latency at this table size. Plain Parquet is
-fastest (24\,s in total), Iceberg 27--28\,s, Delta 65--77\,s and Hudi 120--122\,s. For append-only monitoring feeds,
+cost of 3--9\,s for Iceberg and Delta, with no measurable change in read latency at this table size. Plain Parquet is
+fastest (24\,s in total), Iceberg 27--28\,s, Delta 65--78\,s and Hudi 122--123\,s. For append-only monitoring feeds,
 the choice of format is therefore driven by the features needed (atomicity, history, multi-engine access) rather than
 by performance, except that Hudi's upsert-oriented write path costs 4--5$\times$ more than necessary.
 
@@ -554,8 +555,8 @@ merges to log files. \emph{Plain Parquet} has no metadata cost and rewrites whol
 Hudi here but offers no atomicity: a reader during a partition swap sees missing data, and no history is kept.
 
 \textbf{Query frequency.} Our checkpoints run Q1--Q5 four times per 40 batches. A dashboard that refreshes more often
-weights reads more heavily. Iceberg MoR with compaction every 20 batches needs only 4\,s more than without
-compaction yet reads as fast as Iceberg CoW, and still costs 36\,s less than Iceberg CoW over the run; it therefore
+weights reads more heavily. Iceberg MoR with compaction every 20 batches needs only 1--4\,s more than without
+compaction yet reads as fast as Iceberg CoW, and still costs about 35\,s less than Iceberg CoW over the run; it therefore
 dominates both alternatives unless reads are needed in the intervals right before a compaction.
 
 \subsection{Relation to LHBench and LST-Bench}
@@ -620,8 +621,9 @@ a slower VM; comparisons between layouts never rely on it, because they are made
 compression, cleaning and Hudi's compaction trigger, and report every setting. \emph{Data.} d1 values are
 near-uniform and compress poorly; real sensor data would shrink absolute bytes. \emph{Engine.} Spark only; other
 engines (Trino, DuckDB) may favour different formats. \emph{Scope against the proposal.} We repeat each configuration
-three times rather than the proposed five, so p95 values are indicative only (total cost at $u=20\%$ without compaction:
-65\,s for Iceberg MoR, 178\,s for Hudi MoR, 267\,s for Delta DV). A batch holds 6 hours of data instead of 1--5 minutes,
+five times as proposed, but repetitions 1--3 and 4--5 ran on different VMs, so the CV includes normalisation error; after normalisation the
+median of repetitions 4--5 is about 2\% above that of repetitions 1--3 ($\pm$12\% per configuration). With five samples p95 is close to the
+maximum and remains indicative only (total cost at $u=20\%$ without compaction: 66\,s for Iceberg MoR, 178\,s for Hudi MoR, 266\,s for Delta DV). A batch holds 6 hours of data instead of 1--5 minutes,
 so results reflect the cost per batch size, not a minutes-level write cadence. We did not vary target file size,
 partitioning by station and day, or Z-ordering, and did not run a default-configuration baseline; each day partition
 is about 13\,MB, so every file is below 128\,MB. \sys{} runs standalone and is not yet integrated into LST-Bench.

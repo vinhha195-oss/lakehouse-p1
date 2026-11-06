@@ -123,8 +123,8 @@ table(["Bước", "Việc làm", "Nằm ở đâu"],
       [["1. Dữ liệu", "Tải TSM-Bench d1 (dữ liệu thủy văn, 4,8 GB), cắt 10 trạm × 20 cảm biến × 17 ngày", "`_ext\\`"],
        ["2. Sinh workload", "Bộ sinh sensor-LST tạo luồng thao tác: nạp, 40 batch có dữ liệu trễ, xóa trạm-ngày, "
         "kèm ground truth", "`sensorlst\\workload.py`"],
-       ["3. Chạy thí nghiệm", "4 notebook Kaggle, 237 lần chạy (3 format × 2 chế độ × 4 mức u × 3 chu kỳ "
-        "compaction, lặp 3 lần)", "`notebooks\\`, `sensorlst\\`"],
+       ["3. Chạy thí nghiệm", "8 notebook Kaggle, 395 lần chạy (3 format × 2 chế độ × 4 mức u × 3 chu kỳ "
+        "compaction, lặp 5 lần)", "`notebooks\\`, `sensorlst\\`"],
        ["4. Phân tích", "Gộp kết quả, chuẩn hóa theo tốc độ VM, xuất bảng và biểu đồ",
         "`sensorlst\\analyze.py` → `results\\report\\`"],
        ["5. Viết & trình bày", "Bài báo 14 trang, slide 20 trang, demo localhost, repo GitHub",
@@ -151,16 +151,16 @@ table(["File", "Nhiệm vụ"],
 
 doc.add_paragraph("B. Chạy thí nghiệm", style="Heading 2")
 table(["Mục", "Nhiệm vụ"],
-      [["`notebooks\\sensorlst_u00/01/05/20.ipynb`", "4 notebook đã chạy trên Kaggle, mỗi notebook một mức u; "
+      [["`notebooks\\sensorlst_u00/01/05/20.ipynb`", "4 notebook lần 1–3 trên Kaggle, mỗi notebook một mức u, và 4 notebook u00b/01b/05b/20b cho lần 4–5; "
         "code sensorlst được nhúng sẵn bên trong"],
-       ["`scripts\\make_notebooks.py`", "Sinh lại 4 notebook từ code trong sensorlst\\"],
+       ["`scripts\\make_notebooks.py`", "Sinh lại notebook từ code trong sensorlst\\"],
        ["`HUONG_DAN_KAGGLE.md`", "Hướng dẫn từng bước chạy trên Kaggle"],
        ["`scripts\\show_run.py`", "In tóm tắt nhanh một file kết quả JSON"]],
       [6.0, 11.0])
 
 doc.add_paragraph("C. Kết quả: results\\", style="Heading 2")
 table(["Mục", "Nội dung"],
-      [["`kaggle\\`", "Dữ liệu gốc chính thức: 237 file JSON từ 4 file zip Kaggle"],
+      [["`kaggle\\`", "Dữ liệu gốc chính thức: 395 file JSON từ 8 file zip Kaggle"],
        ["`report\\`", "Kết quả đã phân tích: summary.csv, bảng theo truy vấn, hệ số hiệu chuẩn VM, 8 biểu đồ dùng "
         "trong bài"]],
       [6.0, 11.0])
@@ -211,7 +211,7 @@ table(["Mục", "Ghi chú"],
 doc.add_paragraph("3. Quy trình đã thực hiện", style="Heading 1")
 numbered("**Xây dựng (30/10):** viết sensorlst\\, sửa các lỗi Hudi, chạy thử 26 cấu hình nhỏ trên máy và 3 cấu hình "
          "quy mô thật; tất cả đều đúng.")
-numbered("**Chạy thí nghiệm (31/10):** 4 notebook Kaggle, 237 lần chạy, tải 4 file zip về results\\kaggle\\.")
+numbered("**Chạy thí nghiệm (31/10):** lần 1–3 trên 4 notebook Kaggle; lần 4–5 chạy thêm ngày 6/11 trên 4 notebook khác, tổng 395 lần chạy, tải 8 file zip về results\\kaggle\\.")
 numbered("**Phân tích (31/10):** analyze.py tạo results\\report\\; phát hiện các VM chênh tốc độ tới 1,58 lần nên "
          "bổ sung bước chuẩn hóa.")
 numbered("**Viết (01/11):** bài báo Word 14 trang theo mẫu, 20 slide, demo localhost, cập nhật proposal.")
@@ -220,7 +220,7 @@ numbered("**Hoàn thiện (03/11):** điền tên tác giả, đẩy repo lên G
 
 doc.add_paragraph("4. Trạng thái và việc còn lại", style="Heading 1")
 table(["Hạng mục", "Trạng thái"],
-      [["Proposal (Mốc 1)", "Xong"], ["Code + thí nghiệm (Mốc 2)", "Xong — 237/237 lần chạy khớp ground truth"],
+      [["Proposal (Mốc 1)", "Xong"], ["Code + thí nghiệm (Mốc 2)", "Xong — 395/395 lần chạy khớp ground truth"],
        ["Bài báo 12–14 trang", "Xong — 14 trang, đã rà soát"], ["Tên tác giả, link GitHub", "Xong"],
        ["Repo GitHub", "Xong — github.com/vinhha195-oss/lakehouse-p1"],
        ["Slide", "Xong — cần tự rà một lượt và xuất PDF"], ["Demo", "Xong — cần tập trình diễn"]],
