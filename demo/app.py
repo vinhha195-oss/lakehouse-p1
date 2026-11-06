@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 import altair as alt
@@ -38,6 +39,10 @@ class Worker:
 
     def __init__(self, fmt, mode, run_id):
         self.fmt = fmt
+        # Dragging a slider starts overlapping Streamlit reruns on different threads; a request and its reply must not
+        # interleave with another one on the same pipe, or a reply is cut in half.
+        self.lock = threading.Lock()
+        self.series_cache = {}
         log = open(os.path.join(ROOT, "work", f"demo_{fmt}.log"), "a")
         self.p = subprocess.Popen(
             [sys.executable, os.path.join(ROOT, "demo", "worker.py"), "--fmt", fmt, "--mode", mode,
@@ -54,9 +59,17 @@ class Worker:
         return json.loads(line)
 
     def call(self, **req):
-        self.p.stdin.write(json.dumps(req) + "\n")
-        self.p.stdin.flush()
-        return self._read()
+        with self.lock:
+            self.p.stdin.write(json.dumps(req) + "\n")
+            self.p.stdin.flush()
+            return self._read()
+
+    def series(self, station, ref=None, stamp=None):
+        """Readings of one station. An old version never changes; the current table changes with `stamp`."""
+        key = (station, ref, stamp)
+        if key not in self.series_cache:
+            self.series_cache[key] = self.call(cmd="series", station=station, **({"ref": ref} if ref else {}))["series"]
+        return self.series_cache[key]
 
     def stop(self):
         """Wait for a clean exit: the next worker reuses this work directory."""
@@ -216,8 +229,8 @@ idx = st.select_slider("Phiên bản", options=list(range(len(versions))), value
                        format_func=lambda i: f"v{i} · {versions[i]['label']}")
 w = workers[fmt_tt]
 cols = ["time", "s0", "batch"]
-old = pd.DataFrame(w.call(cmd="series", ref=versions[idx]["ref"], station=STATION)["series"], columns=cols)
-cur = pd.DataFrame(w.call(cmd="series", station=STATION)["series"], columns=cols)
+old = pd.DataFrame(w.series(STATION, ref=versions[idx]["ref"]), columns=cols)
+cur = pd.DataFrame(w.series(STATION, stamp=len(st.session_state.log)), columns=cols)
 for df in (old, cur):
     df["time"] = pd.to_datetime(df["time"])
 if old.empty and cur.empty:
