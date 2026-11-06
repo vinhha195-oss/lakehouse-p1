@@ -151,7 +151,7 @@ step("Bước 5 – Compaction (45 giây)",
 step("Bước 6 – Kết (15 giây)",
      "dừng tay, quay lại nhìn người nghe.",
      "Số trong demo chỉ để minh họa cơ chế. Kết luận của đề tài dựa trên 380 lần chạy: khi có dữ liệu trễ, nên chọn "
-     "Iceberg Merge-on-Read, compaction mỗi 20 batch. Em xin hết phần demo, mời thầy và các bạn đặt câu hỏi.",
+     "Iceberg Merge-on-Read, compaction mỗi 20 batch; nếu dashboard đọc nhiều thì mỗi 5 batch. Em xin hết phần demo, mời thầy và các bạn đặt câu hỏi.",
      "giữ nguyên.")
 
 doc.add_paragraph("3. Lưu ý khi nói", style="Heading 1")
@@ -203,7 +203,7 @@ table(["Trong demo", "Trên chiếc xe"],
        ["Số phiên bản, time travel", "Ảnh chụp xe sau mỗi chuyến; so ảnh cũ để biết kiện nào đã đổi"],
        ["Compaction", "Dừng xe, dồn hàng cho gọn; số kiện không đổi"]],
       [6.5, 10.5])
-p("**Câu chốt:** chở hàng hay phải đổi hàng thì chọn xe Iceberg, cứ 20 chuyến dồn hàng một lần: "
+p("**Câu chốt:** chở hàng hay phải đổi hàng thì chọn xe Iceberg, cứ 20 chuyến dồn hàng một lần, phải lấy hàng thường xuyên thì 5 chuyến một lần: "
   "ở thí nghiệm chính, *u* = 20%, Iceberg MoR hết 63 giây, Hudi MoR 170 giây, Delta DV 256 giây.")
 
 doc.save(OUT)
