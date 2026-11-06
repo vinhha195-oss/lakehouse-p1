@@ -1,0 +1,135 @@
+\begin{table*}[!t]\centering
+\caption{Total cost, s (median of 5, normalised). Columns: compaction every $k$ batches, $\infty$ = never}\label{tab:a-total}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 27 & 33 & 30 & 59 & 67 & 62 & 61 & 68 & 64 & 63 & 68 & 64\\
+Iceberg CoW & 28 & 34 & 31 & 102 & 101 & 101 & 101 & 108 & 99 & 100 & 97 & 99\\
+Hudi MoR & 122 & 135 & 129 & 163 & 205 & 182 & 164 & 207 & 184 & 170 & 193 & 186\\
+Hudi CoW & 123 & 186 & 144 & 209 & 282 & 228 & 206 & 273 & 219 & 208 & 278 & 233\\
+Delta CoW & 65 & 88 & 73 & 217 & 219 & 223 & 212 & 220 & 208 & 223 & 223 & 210\\
+Delta DV & 78 & 102 & 87 & 256 & 308 & 272 & 248 & 300 & 277 & 256 & 302 & 273\\
+Parquet & 24 & -- & -- & 90 & -- & -- & 93 & -- & -- & 92 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Ingest time, s (median of 5, normalised)}\label{tab:a-write}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 22 & 22 & 22 & 51 & 48 & 50 & 52 & 49 & 52 & 55 & 49 & 52\\
+Iceberg CoW & 24 & 24 & 24 & 99 & 98 & 98 & 98 & 104 & 95 & 97 & 94 & 96\\
+Hudi MoR & 116 & 117 & 117 & 156 & 160 & 159 & 157 & 162 & 161 & 159 & 152 & 162\\
+Hudi CoW & 119 & 118 & 121 & 205 & 210 & 205 & 203 & 205 & 199 & 204 & 210 & 212\\
+Delta CoW & 57 & 55 & 57 & 210 & 198 & 213 & 205 & 201 & 199 & 215 & 202 & 200\\
+Delta DV & 57 & 52 & 57 & 237 & 233 & 236 & 229 & 226 & 238 & 236 & 229 & 237\\
+Parquet & 20 & -- & -- & 87 & -- & -- & 90 & -- & -- & 89 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Compaction time over the whole run, s (median of 5, normalised)}\label{tab:a-compact}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 0.0 & 7.1 & 4.5 & 0.0 & 15.7 & 7.7 & 0.0 & 15.2 & 7.7 & 0.0 & 14.8 & 7.9\\
+Iceberg CoW & 0.0 & 6.0 & 3.4 & 0.0 & 0.4 & 0.2 & 0.0 & 0.4 & 0.2 & 0.0 & 0.3 & 0.2\\
+Hudi MoR & 0.0 & 12.2 & 5.7 & 0.0 & 39.4 & 17.2 & 0.0 & 40.1 & 16.7 & 0.0 & 36.6 & 17.0\\
+Hudi CoW & 0.0 & 64.9 & 18.2 & 0.0 & 71.4 & 19.7 & 0.0 & 61.4 & 17.7 & 0.0 & 64.9 & 18.2\\
+Delta CoW & 0.0 & 25.3 & 7.6 & 0.0 & 13.0 & 3.1 & 0.0 & 12.1 & 2.7 & 0.0 & 12.8 & 3.0\\
+Delta DV & 0.0 & 37.6 & 13.4 & 0.0 & 64.9 & 20.7 & 0.0 & 64.1 & 19.0 & 0.0 & 65.1 & 19.9\\
+Parquet & 0.0 & -- & -- & 0.0 & -- & -- & 0.0 & -- & -- & 0.0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Warm Q1--Q5 latency at the last checkpoint, s (median of 5, normalised)}\label{tab:a-read}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 1.09 & 0.82 & 0.79 & 2.15 & 0.77 & 0.74 & 2.47 & 0.74 & 0.71 & 2.27 & 0.75 & 0.67\\
+Iceberg CoW & 0.97 & 0.82 & 0.77 & 0.66 & 0.69 & 0.70 & 0.66 & 0.69 & 0.71 & 0.63 & 0.64 & 0.71\\
+Hudi MoR & 1.26 & 1.12 & 1.23 & 1.92 & 1.21 & 1.25 & 1.96 & 1.25 & 1.12 & 2.86 & 1.20 & 1.19\\
+Hudi CoW & 0.78 & 0.77 & 0.83 & 0.83 & 0.85 & 0.88 & 0.81 & 0.77 & 0.79 & 0.80 & 0.86 & 0.79\\
+Delta CoW & 2.08 & 1.71 & 1.75 & 1.72 & 1.65 & 1.52 & 1.60 & 1.62 & 1.58 & 1.64 & 1.66 & 1.58\\
+Delta DV & 4.51 & 2.69 & 2.72 & 4.77 & 2.77 & 2.81 & 4.57 & 2.55 & 2.75 & 4.76 & 2.74 & 2.86\\
+Parquet & 0.86 & -- & -- & 0.71 & -- & -- & 0.72 & -- & -- & 0.70 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Write amplification (deterministic across repetitions)}\label{tab:a-wa}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 1.02 & 1.99 & 1.84 & 1.04 & 3.45 & 2.22 & 1.06 & 3.47 & 2.24 & 1.16 & 3.57 & 2.34\\
+Iceberg CoW & 1.24 & 1.99 & 1.84 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37\\
+Hudi MoR & 2.24 & 2.44 & 2.44 & 2.29 & 4.22 & 3.24 & 2.34 & 4.26 & 3.29 & 2.51 & 4.44 & 3.46\\
+Hudi CoW & 2.49 & 7.80 & 4.01 & 10.99 & 16.34 & 12.52 & 10.99 & 16.34 & 12.52 & 11.00 & 16.36 & 12.53\\
+Delta CoW & 1.24 & 1.99 & 1.84 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37\\
+Delta DV & 1.02 & 1.99 & 1.84 & 1.03 & 5.55 & 3.14 & 1.06 & 5.57 & 3.17 & 1.16 & 5.65 & 3.27\\
+Parquet & 1.24 & -- & -- & 9.54 & -- & -- & 9.53 & -- & -- & 9.53 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Live delete, deletion-vector or log files at the end of the run}\label{tab:a-del}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 4 & 4 & 4 & 154 & 23 & 10 & 154 & 23 & 10 & 154 & 23 & 10\\
+Iceberg CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Hudi MoR & 4 & 1 & 0 & 124 & 25 & 0 & 124 & 25 & 0 & 124 & 25 & 0\\
+Hudi CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Delta CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Delta DV & 4 & 0 & 0 & 73 & 0 & 0 & 142 & 0 & 0 & 154 & 0 & 0\\
+Parquet & 0 & -- & -- & 0 & -- & -- & 0 & -- & -- & 0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Metadata on disk at the end of the run, KB}\label{tab:a-meta}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 2038 & 3057 & 2530 & 2545 & 4871 & 3646 & 2545 & 4868 & 3644 & 2543 & 4863 & 3639\\
+Iceberg CoW & 2079 & 3059 & 2551 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556\\
+Hudi MoR & 1207 & 1320 & 1267 & 1428 & 1574 & 1510 & 1429 & 1575 & 1511 & 1429 & 1575 & 1511\\
+Hudi CoW & 1205 & 1362 & 1302 & 1384 & 1638 & 1481 & 1384 & 1639 & 1481 & 1385 & 1639 & 1481\\
+Delta CoW & 225 & 279 & 243 & 453 & 453 & 453 & 453 & 453 & 453 & 453 & 453 & 453\\
+Delta DV & 229 & 292 & 255 & 1402 & 1128 & 1345 & 2038 & 1355 & 1910 & 2445 & 1484 & 2277\\
+Parquet & 0 & -- & -- & 0 & -- & -- & 0 & -- & -- & 0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Coefficient of variation of total cost over five repetitions}\label{tab:a-cv}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 0.031 & 0.028 & 0.019 & 0.009 & 0.030 & 0.017 & 0.023 & 0.069 & 0.011 & 0.053 & 0.048 & 0.038\\
+Iceberg CoW & 0.018 & 0.025 & 0.024 & 0.030 & 0.038 & 0.027 & 0.035 & 0.064 & 0.027 & 0.109 & 0.067 & 0.048\\
+Hudi MoR & 0.023 & 0.028 & 0.021 & 0.062 & 0.033 & 0.025 & 0.044 & 0.048 & 0.035 & 0.042 & 0.030 & 0.071\\
+Hudi CoW & 0.034 & 0.014 & 0.033 & 0.028 & 0.015 & 0.003 & 0.046 & 0.047 & 0.033 & 0.047 & 0.047 & 0.059\\
+Delta CoW & 0.009 & 0.052 & 0.087 & 0.046 & 0.093 & 0.067 & 0.038 & 0.087 & 0.046 & 0.069 & 0.049 & 0.044\\
+Delta DV & 0.045 & 0.020 & 0.015 & 0.040 & 0.026 & 0.031 & 0.037 & 0.031 & 0.038 & 0.035 & 0.046 & 0.047\\
+Parquet & 0.017 & -- & -- & 0.076 & -- & -- & 0.032 & -- & -- & 0.053 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}

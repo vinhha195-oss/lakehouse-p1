@@ -32,7 +32,7 @@ total, all of which match the ground truth. Any late data at all raises total co
 ingestion, but the cost is nearly flat between $u=1\%$ and $u=20\%$ ($\le$8\% spread): scattered corrections touch
 every file of the recent partitions regardless of their number. Iceberg merge-on-read is the cheapest layout for every
 $u>0$, 2.7--4.4$\times$ cheaper than Delta or Hudi without compaction, with write amplification 1.0--1.2 against
-9.4--11 for copy-on-write; compacting every 20 batches restores copy-on-write read latency for 8\,s of extra work.
+9.4--11 for copy-on-write; compacting every 20 batches returns reads to near copy-on-write latency for 8\,s of extra work, although latency climbs again between compactions.
 Delta's deletion vectors cut bytes written eightfold yet were slower than Delta copy-on-write in both ingest and reads
 at this scale. Metadata grows linearly by 11--72\,KB per batch, and Hudi keeps only 23 versions reachable by time
 travel. We distil the results into a decision table for small water-monitoring deployments and release all code,
@@ -79,7 +79,7 @@ Before running the experiments we stated three hypotheses, derived from LHBench 
 \textbf{Summary of findings.} H1 does not hold for this workload: at gigabyte scale the formats differ mainly on the
 \emph{write} path and in fixed per-operation overheads. H2 holds for Iceberg and Hudi but not for Delta Lake, whose
 deletion vectors saved bytes but not time. H3 holds in a weak form: read latency of merge-on-read tables starts to climb
-after about 20 batches, and compacting at that cadence recovers copy-on-write read speed cheaply. In addition:
+after about 20 batches; compacting at that cadence recovers copy-on-write read speed cheaply, but only until delete files accumulate again. In addition:
 \begin{itemize}
 \item the \emph{presence} of late data, not its rate, determines cost (a 1.3--3.8$\times$ step from 0\% to 1\%, then
 $\le$8\% change up to 20\%);
@@ -93,7 +93,7 @@ checkpoints.
 
 \textbf{Organisation.} Section~\ref{sec:bg} reviews the three formats and related benchmarks;
 Section~\ref{sec:workload} describes \sys{}; Section~\ref{sec:setup} the experimental setup;
-Section~\ref{sec:results} the results for RQ1--RQ3 and a breakdown by operation, query and time;
+Section~\ref{sec:results} the results for RQ1--RQ3, a breakdown by operation, query and time, an ablation and a statistical check;
 Section~\ref{sec:disc} explains the results, lists practical pitfalls and gives a decision table;
 Section~\ref{sec:concl} concludes.
 
@@ -167,6 +167,19 @@ TSM-Bench~\cite{khelifati2023tsmbench} benchmarks seven time-series databases wi
 monitoring use case; we reuse its dataset, not its systems. TPC-DS~\cite{nambiar2006tpcds} remains the reference
 analytical workload. To our knowledge no published study combines update-heavy sensor workloads, both write modes,
 controlled compaction cadence and single-node hardware.
+
+\begin{table}[!t]\centering
+\caption{Comparison with related benchmarks}\label{tab:related}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{1.75cm}p{2.15cm}p{1.75cm}p{2.5cm}@{}}\toprule
+Study & Workload & Scale & Main focus\\\midrule
+LHBench~\cite{jain2023lhbench} & TPC-DS, merge & 3\,TB, cluster & design trade-offs of three formats\\
+LST-Bench~\cite{camacho2024lstbench} & TPC-DS, maintenance & cloud cluster & stability under maintenance\\
+AutoComp~\cite{gruenheid2025autocomp} & production tables & data-lake scale & automated compaction\\
+TSM-Bench~\cite{khelifati2023tsmbench} & monitoring queries & time-series DBs & TSDB ingestion and queries\\
+This work & sensor appends, late upserts, deletes & 222\,MB, 1 node, 4 vCPU & update rate and compaction cadence on small hardware\\\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Time-series data and monitoring}
 Time-series management systems are surveyed by Jensen et al.~\cite{jensen2017tsms}; specialised time-series databases
@@ -295,6 +308,20 @@ Compact & \texttt{REORG}+\texttt{OPTIMIZE} & \texttt{rewrite\_data\_files} & com
 \end{tabular}
 \end{table}
 
+Table~\ref{tab:settings} lists the settings that differ from each system's defaults; everything else is left as shipped.
+
+\begin{table}[!t]\centering
+\caption{Non-default settings used in every run}\label{tab:settings}
+\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lp{6.5cm}@{}}\toprule
+Scope & Setting\\\midrule
+Spark & \texttt{spark.sql.shuffle.partitions} = 2 $\times$ cores; session time zone UTC; Parquet codec snappy\\
+Delta & \texttt{enableDeletionVectors} on for MoR, off for CoW\\
+Iceberg & \texttt{write.parquet.compression-codec} = snappy; \texttt{write.\{delete,update,merge\}.mode} = merge-on-read or copy-on-write\\
+Hudi & \texttt{hoodie.parquet.compression.codec} = snappy; \texttt{hoodie.clean.automatic} = false; inline compaction and clustering off; \texttt{hoodie.compact.inline.max.delta.commits} = 1; record key \texttt{hkey}\\\bottomrule
+\end{tabular}
+\end{table}
+
 \textbf{Experiment matrix.} 3 formats $\times$ 2 modes $\times$ 4 update rates $\times$ 3 compaction cadences = 72
 configurations, plus 4 Parquet baselines, each repeated 5 times: 380 runs. Runs are executed in rounds (one
 repetition of every configuration per round) in a seeded random order, so that formats are interleaved on the same
@@ -413,6 +440,19 @@ fewer bytes than Delta CoW yet ingests 10--13\% more slowly, whereas Iceberg MoR
 nearly 2$\times$ faster ingest than Iceberg CoW. On local disk, the per-commit work of each format's MERGE implementation
 matters more than the bytes it writes.
 
+\subsection{Where the time goes}
+Fig.~\ref{fig:breakdown} splits total cost at $u=20\%$ into ingest, compaction and checkpoint queries. Ingest accounts for 87--98\%
+of the total without compaction, which explains why RQ1 is decided on the write path: Iceberg MoR is the only layout where queries
+reach 13\% of the total, and even there they do not change its rank. With compaction every 20 batches the compaction bar is short
+for Iceberg MoR (8\,s) and larger for Hudi and Delta DV (17--20\,s). The only change of rank is that Delta CoW passes Hudi CoW, whose clustering adds 18\,s; these two are statistically tied anyway.
+Every run in this matrix issues four query rounds; Section~\ref{sec:disc} asks how the ranking changes with more reads.
+
+\begin{figure*}[!t]\centering
+\includegraphics[width=0.8\textwidth]{fig_breakdown.png}
+\caption{Breakdown of total cost at $u=20\%$ (medians of 5 runs, normalised). Components are medians taken separately, so bars may
+differ from Table~\ref{tab:u20} totals by a second or two.}\label{fig:breakdown}
+\end{figure*}
+
 \subsection{RQ2: compaction cadence}
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{fig_rq2_compaction.png}
@@ -432,10 +472,17 @@ same format. Over the run (Fig.~\ref{fig:deg}) copy-on-write latency falls sligh
 (degradation rate $-9$\% to $-26$\%), whereas Iceberg MoR rises by 28\% and Hudi MoR by 15\%; Hudi MoR jumps between
 the 20th and 30th batch, which is where a break point in small-file count shows up in our data (H3).
 
-\textbf{Compacting every 20 batches is enough.} It brings Iceberg MoR to 0.67\,s and Hudi MoR to 1.19\,s, i.e.\ 6\% and
-49\% above their copy-on-write reads, for 8\,s (Iceberg) and 17\,s (Hudi) of compaction over the run. Compacting every
-5 batches does not read faster (0.75 and 1.20\,s) but costs about twice as much (15 and 37\,s), so it is never the
-cheapest choice for a merge-on-read table in our matrix. For copy-on-write layouts compaction buys nothing once $u>0$: every batch already
+\textbf{Compaction every 20 batches is the cheap option, not a free one.} Right after a compaction it brings Iceberg MoR
+to 0.67\,s and Hudi MoR to 1.19\,s, i.e.\ 6\% and 49\% above their copy-on-write reads, for 8\,s (Iceberg) and 17\,s
+(Hudi) of compaction over the run. These end-of-run figures flatter the cadence, however, because each checkpoint runs after
+that batch's compaction. Fig.~\ref{fig:sawtooth} shows the checkpoint in between: ten batches after a compaction, reads are
+back at 1.29\,s for Iceberg MoR and 2.13\,s for Hudi MoR, about 2.0$\times$ and 2.7$\times$ copy-on-write, so latency follows a
+sawtooth. Averaged over the four checkpoints at $u=20\%$, Q1--Q5 take 2.06\,s without compaction, 1.13\,s with compaction every
+20 batches and 0.84\,s every 5 batches on Iceberg MoR, against 0.72\,s for Iceberg CoW; on Hudi the figures are 2.58, 1.79, 1.21
+and 0.84\,s. Compacting every 5 batches costs about twice as much (15 and 37\,s) and its total cost is not distinguishable from
+every 20 batches at this query rate (Section~\ref{sec:stats}), but it keeps reads steadier. All its checkpoints also fall right after a compaction, so
+its figures are a best case. We did not measure the very end of a 20-batch cycle, where latency should be higher than at the
+midpoint. For copy-on-write layouts compaction buys nothing once $u>0$: every batch already
 rewrites the touched partitions into one file each (17 files), and Iceberg's \texttt{rewrite\_data\_files} finds no
 work. At $u=0$, by contrast, appends leave 47 files without compaction and compaction trims them to 17, with no
 measurable change in read latency at this table size.
@@ -445,6 +492,12 @@ delete files that no longer apply: 23 (every 5 batches) and 10 (every 20 batches
 \texttt{REORG}+\texttt{OPTIMIZE} left none at either cadence; Hudi left none when compacting every 20 batches but 25
 log files when compacting every 5. Second, enabling deletion vectors slows every Delta query by roughly 0.2--0.3\,s even
 after all vectors have been purged (Q1--Q5: 2.86\,s versus 1.58\,s with the same 17 files), so a Delta table that is mostly read is better served by copy-on-write.
+
+\begin{figure*}[!t]\centering
+\includegraphics[width=0.8\textwidth]{fig_sawtooth.png}
+\caption{Warm Q1--Q5 latency at each checkpoint, $u=20\%$. Every-20 readings at batches 20 and 40, and all every-5 readings, are taken
+right after a compaction; the every-20 reading at batch 30 is ten batches after one.}\label{fig:sawtooth}
+\end{figure*}
 
 \subsection{RQ3: metadata and time travel}
 \begin{figure}[t]\centering
@@ -501,7 +554,7 @@ handling merges each batch into existing base files.
 
 \subsection{Which queries pay the merge-on-read penalty}
 \begin{table}[t]\centering
-\caption{Warm latency per query at the end of the run, $u=20\%$ (seconds, median of 5)}\label{tab:perquery}
+\caption{Warm latency per query at the end of the run, $u=20\%$ (seconds, median of 5; the ``every 20'' rows are read right after a compaction)}\label{tab:perquery}
 \footnotesize
 \begin{tabular}{@{}lrrrrr@{}}\toprule
 Layout (compaction) & Q1 & Q2 & Q3 & Q4 & Q5\\\midrule
@@ -541,6 +594,74 @@ the choice of format is therefore driven by the features needed (atomicity, hist
 by performance, except that Hudi's upsert-oriented write path costs 4--5$\times$ more than necessary.
 
 %=====================================================================================================
+\subsection{Ablation: removing one mechanism at a time}\label{sec:ablation}
+Table~\ref{tab:ablation} switches off one mechanism while everything else stays the same. Read latency is the mean of the four
+checkpoints, so it does not depend on the timing issue above. Removing compaction lowers total cost by 1--18\,s and raises mean
+read latency by 0.8--1.0\,s: at four query rounds per run this is a net saving, which is why the cheapest total in our matrix is
+the uncompacted table even though we recommend compaction. Removing deletion vectors from Delta is a clear gain on both axes: total
+cost and reads both improve, so the mechanism has no benefit here. Removing Iceberg's position deletes has the opposite effect:
+total cost rises by 37\,s while mean read latency falls by 1.3\,s, a genuine trade-off. Hudi's log files behave the same way.
+
+A third ablation removes the normalisation by VM. Computed on raw seconds, the step from $u=0$ to $u=1\%$ reads 2.1--5.8$\times$
+rather than 1.3--3.8$\times$, and cost appears to vary by 36--50\% between $u=1\%$ and $u=20\%$ rather than by at most 8\%. Without
+calibration the central finding of RQ1, that the rate of late data hardly matters, would have been hidden by VM speed.
+
+\begin{table}[!t]\centering
+\caption{Ablation at $u=20\%$: total cost (s) and mean read latency over the four checkpoints (s), with the mechanism on and off}\label{tab:ablation}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrrrr@{}}\toprule
+Removed & Layout & Total on & off & Read on & off\\\midrule
+Compaction & Iceberg MoR & 64 & 63 & 1.13 & 2.06\\
+Compaction & Hudi MoR & 186 & 170 & 1.79 & 2.58\\
+Compaction & Delta DV & 273 & 256 & 3.87 & 4.85\\
+Deletion vectors & Delta & 256 & 223 & 4.85 & 1.77\\
+Position deletes & Iceberg & 63 & 100 & 2.06 & 0.72\\
+Log files & Hudi & 170 & 208 & 2.58 & 0.84\\\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Statistical confidence}\label{sec:stats}
+Table~\ref{tab:stats} tests the main claims. For each pair we report the ratio of medians, a 95\% bootstrap interval (20,000 resamples
+of the five repetitions on each side) and an exact two-sided Mann--Whitney test. With five values per side that test cannot go below
+$p=0.008$, which requires complete separation of the two groups. Every claim that Iceberg MoR beats another layout reaches this
+limit at all three update rates, as does the claim that Delta DV ingests more slowly than Delta CoW. The flatness of cost between
+$u=1\%$ and $u=20\%$ also survives: no layout shows a significant difference ($p\ge 0.095$; the two extremes are in the table).
+
+Two results are weaker than they look in the medians. Delta CoW and Hudi CoW at $u=20\%$ differ by 7\% in the median, but the
+interval spans 1 and $p=0.84$, so they are tied. The total-cost gap between compacting every 5 and every 20 batches is also not
+significant ($p=0.15$), so the cheaper total of every 20 batches is a tendency rather than a firm result. We ran 26 such tests and
+do not correct for multiple comparisons; with $n=5$ a Bonferroni correction would make none significant, so the table should be read as
+effect sizes with honest uncertainty. The bootstrap on five values is coarse, and its intervals are not symmetric.
+
+Fig.~\ref{fig:agreement} checks reproducibility across VMs. Each point compares one configuration's median over repetitions 1--3 with
+its median over repetitions 4--5, which ran on different VMs six days later. All 76 configurations fall within $\pm$15\% of the diagonal
+(0.89--1.12$\times$), and the median offset is 2\%.
+
+\begin{table}[!t]\centering
+\caption{Ratio of medians, 95\% bootstrap interval and exact Mann--Whitney $p$ ($n=5$ per side); $p=0.008$ is the lowest attainable}\label{tab:stats}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrcr@{}}\toprule
+Comparison & Ratio & 95\% interval & $p$\\\midrule
+Parquet / Ice.\ MoR, $u=1\%$ & 1.54 & [1.52, 1.81] & 0.008\\
+Parquet / Ice.\ MoR, $u=20\%$ & 1.45 & [1.32, 1.57] & 0.008\\
+Ice.\ CoW / Ice.\ MoR, $u=20\%$ & 1.58 & [1.46, 1.94] & 0.008\\
+Hudi MoR / Ice.\ MoR, $u=20\%$ & 2.69 & [2.51, 2.97] & 0.008\\
+Delta DV / CoW, ingest, $u=20\%$ & 1.10 & [1.04, 1.26] & 0.008\\
+Delta CoW / Hudi CoW, $u=20\%$ & 1.07 & [0.91, 1.11] & 0.841\\
+Ice.\ MoR, $u=20\%$ / $1\%$ & 1.08 & [1.00, 1.13] & 0.095\\
+Delta CoW, $u=20\%$ / $1\%$ & 1.03 & [0.89, 1.10] & 0.841\\
+Ice.\ MoR, total, every 5 / 20 & 1.05 & [0.97, 1.13] & 0.151\\
+Hudi MoR, total, every 5 / 20 & 1.03 & [0.95, 1.16] & 0.151\\
+Ice.\ MoR, end read, never / 20 & 3.41 & [3.04, 3.80] & 0.008\\
+Hudi MoR, end read, never / 20 & 2.41 & [1.41, 3.22] & 0.008\\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]\centering
+\includegraphics[width=0.85\columnwidth]{fig_rep_agreement.png}
+\caption{Agreement between the two VM batches after normalisation: one point per configuration, shaded band $\pm$15\%.}\label{fig:agreement}
+\end{figure}
+
 \section{Discussion}\label{sec:disc}
 \subsection{Explaining the differences}
 \emph{Iceberg MoR} turns a MERGE into new data files for the changed rows plus small position-delete files, and plans
@@ -556,9 +677,30 @@ merges to log files. \emph{Plain Parquet} has no metadata cost and rewrites whol
 Hudi here but offers no atomicity: a reader during a partition swap sees missing data, and no history is kept.
 
 \textbf{Query frequency.} Our checkpoints run Q1--Q5 four times per 40 batches. A dashboard that refreshes more often
-weights reads more heavily. Iceberg MoR with compaction every 20 batches needs only 1--4\,s more than without
-compaction yet reads as fast as Iceberg CoW, and still costs about 35\,s less than Iceberg CoW over the run; it therefore
-dominates both alternatives unless reads are needed in the intervals right before a compaction.
+weights reads more heavily. Table~\ref{tab:breakeven} turns the measurements into a break-even point: the number of Q1--Q5 rounds
+per 40 batches at which the write-side saving of a merge-on-read layout over copy-on-write equals its read penalty, taking the mean
+latency of the four checkpoints as the cost of one round. Iceberg MoR without compaction stops paying off at 32--41 rounds, about
+one per batch; with compaction every 20 batches it holds up to 83--111 rounds. Hudi MoR breaks even at 26--53 rounds in both cases.
+Between the two Iceberg cadences, the extra 7--8\,s of compaction every 5 batches saves 0.28--0.36\,s per round and repays itself
+after 21--28 rounds per 40 batches. The practical rule is therefore a simple one: compact every 20 batches when dashboards refresh
+less often than every second batch, and every 5 batches when they refresh more often. This model is deliberately simple. It
+treats reads as independent of ingest, ignores concurrency, and inherits the checkpoint timing discussed above, which favours the
+every-5 cadence.
+
+\begin{table}[!t]\centering
+\caption{Break-even of merge-on-read against copy-on-write of the same format, $u=1$--$20\%$: write-side saving (s per run), mean read penalty
+(s per Q1--Q5 round) and Q1--Q5 rounds per 40 batches at which they cancel out}\label{tab:breakeven}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrrr@{}}\toprule
+Layout & Compaction & Saving & Penalty & Rounds\\\midrule
+Iceberg MoR & never & 42--49 & 1.20--1.40 & 32--41\\
+Iceberg MoR & every 20 & 37--42 & 0.38--0.46 & 83--111\\
+Iceberg MoR & every 5 & 33--36 & 0.09--0.11 & 292--395\\
+Hudi MoR & never & 45--49 & 0.92--1.74 & 26--53\\
+Hudi MoR & every 20 & 24--29 & 0.57--0.95 & 27--50\\
+Hudi MoR & every 5 & 1--16 & 0.34--0.37 & 2--43\\\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Relation to LHBench and LST-Bench}
 LHBench found that on TPC-DS at 3\,TB the formats differ mainly in data read time~\cite{jain2023lhbench}. Our
@@ -605,7 +747,7 @@ off on object storage. These are hypotheses for the multi-node MinIO setup plann
 Situation & Layout & Compaction\\\midrule
 Append-only ($u=0$), ACID/history needed & Iceberg (either mode) & every 20 batches\\
 Append-only, no ACID needed & plain Parquet & --\\
-Any late data ($u=1$--$20\%$) & Iceberg MoR & every 20 batches\\
+Any late data ($u=1$--$20\%$) & Iceberg MoR & every 20 batches; every 5 if read-heavy\\
 Already on Delta Lake & Delta CoW (DV off) & optional\\
 Already on Hudi & Hudi MoR & every 20 batches\\
 Long time-travel horizon & Iceberg or Delta (Hudi keeps $\approx$23 versions by default) & --\\\bottomrule
@@ -633,8 +775,8 @@ is about 13\,MB, so every file is below 128\,MB. \sys{} runs standalone and is n
 \section{Conclusion and Future Work}\label{sec:concl}
 For update-heavy sensor tables on a single node, the presence of late data, not its rate, sets the cost: total cost
 jumps 1.3--3.8$\times$ when corrections appear and then stays within 8\% from 1\% to 20\% late rows (RQ1). Iceberg
-merge-on-read was the cheapest layout for every non-zero rate, and compacting it every 20 micro-batches restored
-copy-on-write read latency for 8--17\,s of work, while compacting every 5 batches only added cost (RQ2).
+merge-on-read was the cheapest layout for every non-zero rate, and compacting it every 20 micro-batches returned reads to near
+copy-on-write latency for 8--17\,s of work, although latency climbs again between compactions, so read-heavy dashboards should compact every 5 batches (RQ2).
 Metadata grew linearly at 11--72\,KB per batch without affecting time-travel latency, which instead tracked the number
 of delete or log files; Hudi's default archiving limits time travel to about 23 versions (RQ3). Delta's deletion
 vectors reduced bytes written eightfold but not time, a reminder that byte-based metrics alone mislead on local disk.
@@ -644,6 +786,165 @@ policies in the style of AutoComp.
 
 \section*{Reproducibility}
 Code, staged-workload generator, notebooks, raw run JSONs and analysis scripts: \url{https://github.com/vinhha195-oss/lakehouse-p1}.
+
+The full experiment needs no local cluster. Table~\ref{tab:repro} lists the steps; each Kaggle notebook is self-contained and embeds the
+\texttt{sensorlst} package, so it can be re-run from a browser. The workload generator is deterministic for a given seed, so all layouts and
+all repetitions read byte-identical input. The raw JSON record of every run is kept in the repository, and all tables and figures here, including
+the statistics, are regenerated from these records by the two analysis commands.
+
+\begin{table}[!t]\centering
+\caption{Steps to reproduce the results}\label{tab:repro}
+\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{1.9cm}p{6.3cm}@{}}\toprule
+Step & Command or artefact\\\midrule
+Run repetitions 1--3 & \texttt{notebooks/sensorlst\_u\{00,01,05,20\}.ipynb} on Kaggle CPU\\
+Run repetitions 4--5 & \texttt{notebooks/sensorlst\_u\{00,01,05,20\}b.ipynb}\\
+Aggregate & \texttt{python -m sensorlst.analyze results/kaggle/u*/runs\_u* --out results/report}\\
+Extra analyses & \texttt{python scripts/extra\_analysis.py results/report}\\
+Live demo & \texttt{run\_demo.bat}, then \texttt{http://localhost:8501}\\\bottomrule
+\end{tabular}
+\end{table}
+
+\appendices
+\section{Full Results}
+Tables~\ref{tab:a-total}--\ref{tab:a-cv} give every configuration of the matrix. Read latencies are taken at the last checkpoint and therefore
+right after a compaction for the ``5'' and ``20'' columns (Section~\ref{sec:results}). Plain Parquet has no compaction, so its other columns are empty.
+
+\begin{table*}[!t]\centering
+\caption{Total cost, s (median of 5, normalised). Columns: compaction every $k$ batches, $\infty$ = never}\label{tab:a-total}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 27 & 33 & 30 & 59 & 67 & 62 & 61 & 68 & 64 & 63 & 68 & 64\\
+Iceberg CoW & 28 & 34 & 31 & 102 & 101 & 101 & 101 & 108 & 99 & 100 & 97 & 99\\
+Hudi MoR & 122 & 135 & 129 & 163 & 205 & 182 & 164 & 207 & 184 & 170 & 193 & 186\\
+Hudi CoW & 123 & 186 & 144 & 209 & 282 & 228 & 206 & 273 & 219 & 208 & 278 & 233\\
+Delta CoW & 65 & 88 & 73 & 217 & 219 & 223 & 212 & 220 & 208 & 223 & 223 & 210\\
+Delta DV & 78 & 102 & 87 & 256 & 308 & 272 & 248 & 300 & 277 & 256 & 302 & 273\\
+Parquet & 24 & -- & -- & 90 & -- & -- & 93 & -- & -- & 92 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Ingest time, s (median of 5, normalised)}\label{tab:a-write}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 22 & 22 & 22 & 51 & 48 & 50 & 52 & 49 & 52 & 55 & 49 & 52\\
+Iceberg CoW & 24 & 24 & 24 & 99 & 98 & 98 & 98 & 104 & 95 & 97 & 94 & 96\\
+Hudi MoR & 116 & 117 & 117 & 156 & 160 & 159 & 157 & 162 & 161 & 159 & 152 & 162\\
+Hudi CoW & 119 & 118 & 121 & 205 & 210 & 205 & 203 & 205 & 199 & 204 & 210 & 212\\
+Delta CoW & 57 & 55 & 57 & 210 & 198 & 213 & 205 & 201 & 199 & 215 & 202 & 200\\
+Delta DV & 57 & 52 & 57 & 237 & 233 & 236 & 229 & 226 & 238 & 236 & 229 & 237\\
+Parquet & 20 & -- & -- & 87 & -- & -- & 90 & -- & -- & 89 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Compaction time over the whole run, s (median of 5, normalised)}\label{tab:a-compact}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 0.0 & 7.1 & 4.5 & 0.0 & 15.7 & 7.7 & 0.0 & 15.2 & 7.7 & 0.0 & 14.8 & 7.9\\
+Iceberg CoW & 0.0 & 6.0 & 3.4 & 0.0 & 0.4 & 0.2 & 0.0 & 0.4 & 0.2 & 0.0 & 0.3 & 0.2\\
+Hudi MoR & 0.0 & 12.2 & 5.7 & 0.0 & 39.4 & 17.2 & 0.0 & 40.1 & 16.7 & 0.0 & 36.6 & 17.0\\
+Hudi CoW & 0.0 & 64.9 & 18.2 & 0.0 & 71.4 & 19.7 & 0.0 & 61.4 & 17.7 & 0.0 & 64.9 & 18.2\\
+Delta CoW & 0.0 & 25.3 & 7.6 & 0.0 & 13.0 & 3.1 & 0.0 & 12.1 & 2.7 & 0.0 & 12.8 & 3.0\\
+Delta DV & 0.0 & 37.6 & 13.4 & 0.0 & 64.9 & 20.7 & 0.0 & 64.1 & 19.0 & 0.0 & 65.1 & 19.9\\
+Parquet & 0.0 & -- & -- & 0.0 & -- & -- & 0.0 & -- & -- & 0.0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Warm Q1--Q5 latency at the last checkpoint, s (median of 5, normalised)}\label{tab:a-read}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 1.09 & 0.82 & 0.79 & 2.15 & 0.77 & 0.74 & 2.47 & 0.74 & 0.71 & 2.27 & 0.75 & 0.67\\
+Iceberg CoW & 0.97 & 0.82 & 0.77 & 0.66 & 0.69 & 0.70 & 0.66 & 0.69 & 0.71 & 0.63 & 0.64 & 0.71\\
+Hudi MoR & 1.26 & 1.12 & 1.23 & 1.92 & 1.21 & 1.25 & 1.96 & 1.25 & 1.12 & 2.86 & 1.20 & 1.19\\
+Hudi CoW & 0.78 & 0.77 & 0.83 & 0.83 & 0.85 & 0.88 & 0.81 & 0.77 & 0.79 & 0.80 & 0.86 & 0.79\\
+Delta CoW & 2.08 & 1.71 & 1.75 & 1.72 & 1.65 & 1.52 & 1.60 & 1.62 & 1.58 & 1.64 & 1.66 & 1.58\\
+Delta DV & 4.51 & 2.69 & 2.72 & 4.77 & 2.77 & 2.81 & 4.57 & 2.55 & 2.75 & 4.76 & 2.74 & 2.86\\
+Parquet & 0.86 & -- & -- & 0.71 & -- & -- & 0.72 & -- & -- & 0.70 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Write amplification (deterministic across repetitions)}\label{tab:a-wa}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 1.02 & 1.99 & 1.84 & 1.04 & 3.45 & 2.22 & 1.06 & 3.47 & 2.24 & 1.16 & 3.57 & 2.34\\
+Iceberg CoW & 1.24 & 1.99 & 1.84 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37\\
+Hudi MoR & 2.24 & 2.44 & 2.44 & 2.29 & 4.22 & 3.24 & 2.34 & 4.26 & 3.29 & 2.51 & 4.44 & 3.46\\
+Hudi CoW & 2.49 & 7.80 & 4.01 & 10.99 & 16.34 & 12.52 & 10.99 & 16.34 & 12.52 & 11.00 & 16.36 & 12.53\\
+Delta CoW & 1.24 & 1.99 & 1.84 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37 & 9.37\\
+Delta DV & 1.02 & 1.99 & 1.84 & 1.03 & 5.55 & 3.14 & 1.06 & 5.57 & 3.17 & 1.16 & 5.65 & 3.27\\
+Parquet & 1.24 & -- & -- & 9.54 & -- & -- & 9.53 & -- & -- & 9.53 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Live delete, deletion-vector or log files at the end of the run}\label{tab:a-del}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 4 & 4 & 4 & 154 & 23 & 10 & 154 & 23 & 10 & 154 & 23 & 10\\
+Iceberg CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Hudi MoR & 4 & 1 & 0 & 124 & 25 & 0 & 124 & 25 & 0 & 124 & 25 & 0\\
+Hudi CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Delta CoW & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+Delta DV & 4 & 0 & 0 & 73 & 0 & 0 & 142 & 0 & 0 & 154 & 0 & 0\\
+Parquet & 0 & -- & -- & 0 & -- & -- & 0 & -- & -- & 0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Metadata on disk at the end of the run, KB}\label{tab:a-meta}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 2038 & 3057 & 2530 & 2545 & 4871 & 3646 & 2545 & 4868 & 3644 & 2543 & 4863 & 3639\\
+Iceberg CoW & 2079 & 3059 & 2551 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556 & 2556\\
+Hudi MoR & 1207 & 1320 & 1267 & 1428 & 1574 & 1510 & 1429 & 1575 & 1511 & 1429 & 1575 & 1511\\
+Hudi CoW & 1205 & 1362 & 1302 & 1384 & 1638 & 1481 & 1384 & 1639 & 1481 & 1385 & 1639 & 1481\\
+Delta CoW & 225 & 279 & 243 & 453 & 453 & 453 & 453 & 453 & 453 & 453 & 453 & 453\\
+Delta DV & 229 & 292 & 255 & 1402 & 1128 & 1345 & 2038 & 1355 & 1910 & 2445 & 1484 & 2277\\
+Parquet & 0 & -- & -- & 0 & -- & -- & 0 & -- & -- & 0 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]\centering
+\caption{Coefficient of variation of total cost over five repetitions}\label{tab:a-cv}
+\footnotesize
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}\toprule
+ & \multicolumn{3}{c}{$u=0$} & \multicolumn{3}{c}{$u=1\%$} & \multicolumn{3}{c}{$u=5\%$} & \multicolumn{3}{c}{$u=20\%$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Layout & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20 & $\infty$ & 5 & 20\\\midrule
+Iceberg MoR & 0.031 & 0.028 & 0.019 & 0.009 & 0.030 & 0.017 & 0.023 & 0.069 & 0.011 & 0.053 & 0.048 & 0.038\\
+Iceberg CoW & 0.018 & 0.025 & 0.024 & 0.030 & 0.038 & 0.027 & 0.035 & 0.064 & 0.027 & 0.109 & 0.067 & 0.048\\
+Hudi MoR & 0.023 & 0.028 & 0.021 & 0.062 & 0.033 & 0.025 & 0.044 & 0.048 & 0.035 & 0.042 & 0.030 & 0.071\\
+Hudi CoW & 0.034 & 0.014 & 0.033 & 0.028 & 0.015 & 0.003 & 0.046 & 0.047 & 0.033 & 0.047 & 0.047 & 0.059\\
+Delta CoW & 0.009 & 0.052 & 0.087 & 0.046 & 0.093 & 0.067 & 0.038 & 0.087 & 0.046 & 0.069 & 0.049 & 0.044\\
+Delta DV & 0.045 & 0.020 & 0.015 & 0.040 & 0.026 & 0.031 & 0.037 & 0.031 & 0.038 & 0.035 & 0.046 & 0.047\\
+Parquet & 0.017 & -- & -- & 0.076 & -- & -- & 0.032 & -- & -- & 0.053 & -- & --\\\bottomrule
+\end{tabular}
+\end{table*}
 
 \begin{thebibliography}{99}
 \bibitem{oneil1996lsm} P.~O'Neil, E.~Cheng, D.~Gawlick, and E.~O'Neil, ``The log-structured merge-tree (LSM-tree),''
