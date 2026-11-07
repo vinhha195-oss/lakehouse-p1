@@ -21,3 +21,4 @@ paper_overleaf.zip
 /*.pptx
 scripts/check_paper.py
 scripts/check_report.py
+results/report/appendix_tables.tex
