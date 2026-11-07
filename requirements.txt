@@ -5,3 +5,5 @@ pyarrow>=14
 matplotlib>=3.8
 tabulate
 pytest
+streamlit>=1.40   # live demo
+altair>=5

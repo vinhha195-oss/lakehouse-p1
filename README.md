@@ -105,6 +105,29 @@ station-day deletes and compaction, compare files/metadata/timings across format
 ground truth, and time-travel to any version (including recovering a deleted station). Headless tests:
 `python demo/test_worker.py` and `python demo/test_app.py`.
 
+The demo generates its own data (same shape and value distribution as TSM-Bench d1, uniform values in [0, 1)), so it
+needs neither the d1 download nor the Kaggle results. The main experiment uses the real d1 data.
+
+**Setup on Windows (once):**
+
+1. Python 3.12 and Git. In the repository folder:
+   ```bat
+   python -m venv .venv
+   .venv\Scripts\pip install -r requirements.txt
+   ```
+2. Java 11 or 17, e.g. Eclipse Temurin. Either set `JAVA_HOME` system-wide or unpack it so that
+   `_ext\jdk\jdk-11.0.32.1+1\bin\java.exe` exists.
+3. Hadoop's Windows helpers, which Spark needs to write files on Windows: `winutils.exe` and `hadoop.dll` built for
+   Hadoop 3.3 (Spark 3.5.3 ships Hadoop 3.3.4), for example from the `hadoop-3.3.x/bin` folder of
+   github.com/cdarlint/winutils. Put both in `_ext\hadoop\bin\`, or in `%HADOOP_HOME%\bin` if `HADOOP_HOME` is set.
+4. Double-click `run_demo.bat`. The first start needs Internet: Spark downloads the Delta Lake, Iceberg and Hudi
+   packages from Maven Central (about 300 MB, cached in `_ext\ivy` if that folder exists, otherwise in `~\.ivy2`).
+   Later starts work offline.
+
+The launcher checks these three items and says which one is missing. `_ext\` is not in the repository because of its
+size. On Linux or macOS, set `JAVA_HOME`, skip step 3 and run
+`.venv/bin/python -m streamlit run demo/app.py --server.port 8501`.
+
 ## Known limitations
 
 * Single-node Spark (local mode) on a 4-vCPU VM, not a multi-node cluster; local disk, not object storage.

@@ -134,7 +134,7 @@ if st.sidebar.button("Khởi động / làm lại từ đầu", type="primary", 
     start(fmts, mode)
 if st.sidebar.button("Dừng Spark"):
     stop_all()
-st.sidebar.caption("Dữ liệu: TSM-Bench d1 dạng thu nhỏ — 4 trạm × 5 cảm biến, mẫu 10 giây. Mỗi batch = 30 phút "
+st.sidebar.caption("Dữ liệu mô phỏng cùng dạng TSM-Bench d1 (giá trị ngẫu nhiên đều trong [0, 1)) — 4 trạm × 5 cảm biến, mẫu 10 giây. Mỗi batch = 30 phút "
                    "dữ liệu mới + 20% bản ghi hiệu chỉnh trễ của 2 giờ trước đó.")
 
 st.title("Delta Lake vs Apache Iceberg vs Apache Hudi")
