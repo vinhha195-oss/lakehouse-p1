@@ -11,3 +11,13 @@ results/smoke*/
 report/_preview/
 results/local_small/
 *.pyc
+
+# Reports, paper and slides are kept locally, not on GitHub
+report/
+paper/
+paper_overleaf.zip
+/*.docx
+/*.pdf
+/*.pptx
+scripts/check_paper.py
+scripts/check_report.py
